@@ -408,22 +408,23 @@ def create_pmnist_classification_dataset(cache_dir: Union[str, Path] = DEFAULT_C
     return trn_loader, val_loader, tst_loader, aux_loaders, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE
 
 
-def create_icl_linreg_dataset(seed: int = 42, bsz: int = 128) -> ReturnType:
+def create_icl_linreg_dataset(cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_ROOT, # Need this for interface. Dummy.
+                              seed: int = 42, bsz: int = 128) -> ReturnType:
     from s5.dataloaders.basic import LinReg
     name = 'linreg'
 
     dataset_obj = LinReg(name)
     dataset_obj.setup()
-    trn_loader = make_data_loader(dataset_obj.dataset_train, seed=seed, batch_size=bsz)
-    val_loader = make_data_loader(dataset_obj.dataset_val, seed=seed, batch_size=bsz, drop_last=False,
+    trn_loader = make_data_loader(dataset_obj.dataset_train, dataset_obj, seed=seed, batch_size=bsz)
+    val_loader = make_data_loader(dataset_obj.dataset_val, dataset_obj, seed=seed, batch_size=bsz, drop_last=False,
                                   shuffle=False)
-    tst_loader = make_data_loader(dataset_obj.dataset_test, seed=seed, batch_size=bsz, drop_last=False,
+    tst_loader = make_data_loader(dataset_obj.dataset_test, dataset_obj, seed=seed, batch_size=bsz, drop_last=False,
                                   shuffle=False)
     aux_loaders = {}
 
     N_CLASSES = dataset_obj.d_output
-    SEQ_LENGTH = dataset_obj.L
-    IN_DIM = dataset_obj.d_input
+    SEQ_LENGTH = dataset_obj.L + 1
+    IN_DIM = dataset_obj.d_input + 1
     TRAIN_SIZE = len(dataset_obj.dataset_train)
 
     return trn_loader, val_loader, tst_loader, aux_loaders, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE

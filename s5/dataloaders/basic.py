@@ -61,8 +61,8 @@ class MNIST(SequenceDataset):
 
 class LinReg(SequenceDataset):
     _name_ = "linreg"
-    d_input = 10
-    d_output = 1
+    d_input = 7
+    d_output = 8
     l_output = 0
     L = 10
     size_distract = 0

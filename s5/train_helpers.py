@@ -42,7 +42,7 @@ def reduce_lr_on_plateau(input, factor=0.2, patience=20, lr_min=1e-6):
     return lr, ssm_lr, count, opt_acc
 
 
-def constant_lr(step, base_lr, end_step,  lr_min=None):
+def constant_lr(step, base_lr, end_step, lr_min=None):
     return base_lr
 
 
@@ -55,12 +55,15 @@ def update_learning_rate_per_step(lr_params, state):
     step += 1
 
     # Update state
-    state.opt_state.inner_states['regular'].inner_state.hyperparams['learning_rate'] = np.array(lr_val, dtype=np.float32)
-    state.opt_state.inner_states['ssm'].inner_state.hyperparams['learning_rate'] = np.array(ssm_lr_val, dtype=np.float32)
+    state.opt_state.inner_states['regular'].inner_state.hyperparams['learning_rate'] = np.array(lr_val,
+                                                                                                dtype=np.float32)
+    state.opt_state.inner_states['ssm'].inner_state.hyperparams['learning_rate'] = np.array(ssm_lr_val,
+                                                                                            dtype=np.float32)
     if opt_config in ["BandCdecay"]:
         # In this case we are applying the ssm learning rate to B, even though
         # we are also using weight decay on B
-        state.opt_state.inner_states['none'].inner_state.hyperparams['learning_rate'] = np.array(ssm_lr_val, dtype=np.float32)
+        state.opt_state.inner_states['none'].inner_state.hyperparams['learning_rate'] = np.array(ssm_lr_val,
+                                                                                                 dtype=np.float32)
 
     return state, step
 
@@ -116,14 +119,14 @@ def create_train_state(model_cls,
     if padded:
         if retrieval:
             # For retrieval tasks we have two different sets of "documents"
-            dummy_input = (np.ones((2*bsz, seq_len, in_dim)), np.ones(2*bsz))
-            integration_timesteps = np.ones((2*bsz, seq_len,))
+            dummy_input = (np.ones((2 * bsz, seq_len, in_dim)), np.ones(2 * bsz))
+            integration_timesteps = np.ones((2 * bsz, seq_len,))
         else:
             dummy_input = (np.ones((bsz, seq_len, in_dim)), np.ones(bsz))
             integration_timesteps = np.ones((bsz, seq_len,))
     else:
         dummy_input = np.ones((bsz, seq_len, in_dim))
-        integration_timesteps = np.ones((bsz, seq_len, ))
+        integration_timesteps = np.ones((bsz, seq_len,))
 
     model = model_cls(training=True)
     init_rng, dropout_rng = jax.random.split(rng, num=2)
@@ -132,10 +135,12 @@ def create_train_state(model_cls,
                            dummy_input, integration_timesteps,
                            )
     if batchnorm:
-        params = variables["params"].unfreeze()
+        # params = variables["params"].unfreeze()
+        params = variables["params"]
         batch_stats = variables["batch_stats"]
     else:
-        params = variables["params"].unfreeze()
+        # params = variables["params"].unfreeze()
+        params = variables["params"]
         # Note: `unfreeze()` is for using Optax.
 
     if opt_config in ["standard"]:
@@ -257,6 +262,7 @@ def create_train_state(model_cls,
     if batchnorm:
         class TrainState(train_state.TrainState):
             batch_stats: Any
+
         return TrainState.create(apply_fn=model.apply, params=params, tx=tx, batch_stats=batch_stats)
     else:
         return train_state.TrainState.create(apply_fn=model.apply, params=params, tx=tx)
@@ -269,9 +275,19 @@ def cross_entropy_loss(logits, label):
     return -np.sum(one_hot_label * logits)
 
 
+# @partial(np.vectorize, signature="(c),()->()")
+def mse_loss(preds, targets):
+    # assert preds.shape == targets.shape
+    return 0.5 * np.sum((targets - preds) ** 2) / targets.shape[0]
+
+
 @partial(np.vectorize, signature="(c),()->()")
 def compute_accuracy(logits, label):
     return np.argmax(logits) == label
+
+def compute_rmse(preds, targets):
+    # assert preds.shape == targets.shape
+    return np.sqrt(0.5 * np.sum((targets - preds) ** 2) / targets.shape[0])
 
 
 def prep_batch(batch: tuple,
@@ -383,6 +399,7 @@ def train_step(state,
                batchnorm,
                ):
     """Performs a single training step given a batch of data"""
+
     def loss_fn(params):
 
         if batchnorm:
@@ -400,7 +417,8 @@ def train_step(state,
                 mutable=["intermediates"],
             )
 
-        loss = np.mean(cross_entropy_loss(logits, batch_labels))
+        # loss = np.mean(cross_entropy_loss(logits, batch_labels))
+        loss = np.mean(mse_loss(logits, batch_labels))
 
         return loss, (mod_vars, logits)
 
@@ -430,7 +448,9 @@ def eval_step(batch_inputs,
                              batch_inputs, batch_integration_timesteps,
                              )
 
-    losses = cross_entropy_loss(logits, batch_labels)
-    accs = compute_accuracy(logits, batch_labels)
+    # losses = cross_entropy_loss(logits, batch_labels)
+    losses = mse_loss(logits, batch_labels)
+    # accs = compute_accuracy(logits, batch_labels)
+    accs = compute_rmse(logits, batch_labels)
 
     return losses, accs, logits

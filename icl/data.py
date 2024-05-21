@@ -3,12 +3,16 @@
 """
 
 from functools import partial
+from typing import Tuple, Any
+
 import jax
 from jax import vmap
 import jax.numpy as jnp
 import numpy as np
-from torch.utils import data
-
+import torch.utils.data as data
+import torch
+# See https://github.com/google/jax/issues/1100
+from dlpack import asdlpack
 
 class LinRegData(data.Dataset):
     """From `create_reg_data`"""
@@ -24,8 +28,8 @@ class LinRegData(data.Dataset):
         self.input_range = input_range
         self.w_scale = w_scale
 
-    @jax.jit
-    def __getitem__(self, index):
+    # @jax.jit
+    def __getitem__(self, index) -> Tuple[Any, Any]:
         """
         """
         self.rng, new_rng, new_rng2, new_rng3, new_rng4 = jax.random.split(self.rng, 5)
@@ -52,12 +56,13 @@ class LinRegData(data.Dataset):
         seq = jnp.concatenate([seq, zero], 0)
         # return jnp.squeeze(seq), jnp.squeeze(target), w
 
-        episode = {}
-        episode['x'] = seq
-        episode['y'] = target
-        episode['w'] = w
-
-        return episode
+        # episode = {}
+        # episode['x'] = seq
+        # episode['y'] = target
+        # episode['w'] = w
+        # print(x.shape, y_data.shape, x_querry.shape, y_target.shape, zero.shape, seq.shape, target.shape)
+        return torch.from_numpy(np.asarray(seq)), torch.from_numpy(np.asarray(target))
+        # return torch.from_dlpack(asdlpack(seq)), torch.from_dlpack(asdlpack(target))
 
     def __len__(self):  # denotes the total number of samples
         return 1000 * self.dataset_size
