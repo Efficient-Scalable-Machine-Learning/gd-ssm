@@ -62,7 +62,7 @@ class MNIST(SequenceDataset):
 class LinReg(SequenceDataset):
     _name_ = "linreg"
     d_input = 7
-    d_output = 8
+    d_output = 1
     l_output = 0
     L = 10
     size_distract = 0
@@ -79,9 +79,9 @@ class LinReg(SequenceDataset):
     def setup(self):
         self.dataset_train = LinRegData(self.seed, self.d_input, self.L, self.size_distract, self.input_range,
                                         self.w_scale)
-        self.dataset_test = LinRegData(self.seed, self.d_input, self.L, self.size_distract, self.input_range,
+        self.dataset_test = LinRegData(self.seed+1, self.d_input, self.L, self.size_distract, self.input_range,
                                        self.w_scale)
-        self.dataset_val = LinRegData(self.seed, self.d_input, self.L, self.size_distract, self.input_range,
+        self.dataset_val = LinRegData(self.seed+2, self.d_input, self.L, self.size_distract, self.input_range,
                                       self.w_scale)
 
     def __str__(self):

@@ -63,6 +63,7 @@ class LinRegData(data.Dataset):
         # print(x.shape, y_data.shape, x_querry.shape, y_target.shape, zero.shape, seq.shape, target.shape)
         return torch.from_numpy(np.asarray(seq)), torch.from_numpy(np.asarray(target))
         # return torch.from_dlpack(asdlpack(seq)), torch.from_dlpack(asdlpack(target))
+        # return seq, target
 
     def __len__(self):  # denotes the total number of samples
         return 1000 * self.dataset_size

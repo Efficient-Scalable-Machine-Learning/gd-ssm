@@ -51,7 +51,7 @@ def make_data_loader(dset,
 
     # Generate the dataloaders.
     return torch.utils.data.DataLoader(dataset=dset, collate_fn=collate_fn, batch_size=batch_size, shuffle=shuffle,
-                                       drop_last=drop_last, generator=rng)
+                                       drop_last=drop_last, generator=rng) # , num_workers=1, prefetch_factor=2, multiprocessing_context="spawn")
 
 
 def create_lra_imdb_classification_dataset(cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_ROOT,
@@ -424,7 +424,7 @@ def create_icl_linreg_dataset(cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_RO
 
     N_CLASSES = dataset_obj.d_output
     SEQ_LENGTH = dataset_obj.L + 1
-    IN_DIM = dataset_obj.d_input + 1
+    IN_DIM = dataset_obj.d_input + dataset_obj.d_output
     TRAIN_SIZE = len(dataset_obj.dataset_train)
 
     return trn_loader, val_loader, tst_loader, aux_loaders, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE

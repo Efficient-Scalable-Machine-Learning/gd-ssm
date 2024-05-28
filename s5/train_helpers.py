@@ -278,16 +278,18 @@ def cross_entropy_loss(logits, label):
 # @partial(np.vectorize, signature="(c),()->()")
 def mse_loss(preds, targets):
     # assert preds.shape == targets.shape
-    return 0.5 * np.sum((targets - preds) ** 2) / targets.shape[0]
+    return 0.5 * np.sum((targets - preds) ** 2) # / targets.shape[0]
 
 
 @partial(np.vectorize, signature="(c),()->()")
 def compute_accuracy(logits, label):
     return np.argmax(logits) == label
 
+# @partial(np.vectorize, signature="(c),()->()")
 def compute_rmse(preds, targets):
     # assert preds.shape == targets.shape
-    return np.sqrt(0.5 * np.sum((targets - preds) ** 2) / targets.shape[0])
+    # return np.sqrt(0.5 * np.sum((targets - preds) ** 2) / targets.shape[0])
+    return np.sqrt(0.5 * np.sum((targets - preds) ** 2))
 
 
 def prep_batch(batch: tuple,
