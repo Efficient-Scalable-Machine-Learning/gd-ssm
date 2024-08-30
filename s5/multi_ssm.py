@@ -70,8 +70,8 @@ def local_self_attention(input_sequence,w_q):
     transformed_sequence = input_sequence[indices]
     def compute_operation(x):
             return x.T @ w_q @ x  #FIXME - check the dimensions again
-    E_Q_E_T  = jax.vmap(compute_operation)(transformed_sequence)
-    return E_Q_E_T
+    lsa_sequence  = jax.vmap(compute_operation)(transformed_sequence)
+    return lsa_sequence
 
 def apply_ssm(Lambda_bar, B_bar, C_tilde,w_q, D, input_sequence, conj_sym, bidirectional):
     """ Compute the LxH output of discretized SSM given an LxH input.
@@ -88,14 +88,13 @@ def apply_ssm(Lambda_bar, B_bar, C_tilde,w_q, D, input_sequence, conj_sym, bidir
     """
     
     lsa_sequence = local_self_attention(input_sequence,w_q)
-    #lambda_0 =np.zeros((10,10)) #FIXME - Initialise with SSM parametrization
     state_init = np.zeros((input_sequence.shape[1],input_sequence.shape[1]))
 
     def f(carry, inp):
         carry = Lambda_bar@carry+inp
         return carry,carry
 
-    zs, test = jax.lax.scan(f, state_init, lsa_sequence)
+    zs, _ = jax.lax.scan(f, state_init, lsa_sequence)
     
     os = D @ zs
     
