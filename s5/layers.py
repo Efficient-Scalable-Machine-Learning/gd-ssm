@@ -2,7 +2,7 @@ from flax import linen as nn
 import jax
 
 
-class SequenceLayer(nn.Module):
+class S5layer(nn.Module):
     """ Defines a single S5 layer, with S5 SSM, nonlinearity,
             dropout, batch/layer norm, etc.
         Args:
@@ -28,6 +28,8 @@ class SequenceLayer(nn.Module):
     batchnorm: bool = False
     bn_momentum: float = 0.90
     step_rescale: float = 1.0
+    use_skip: bool = False
+    local_attn:bool= False
 
     def setup(self):
         """Initializes the ssm, batch/layer norm and dropout
@@ -42,7 +44,7 @@ class SequenceLayer(nn.Module):
 
         if self.batchnorm:
             self.norm = nn.BatchNorm(use_running_average=not self.training,
-                                     momentum=self.bn_momentum, axis_name='batch')
+                                    momentum=self.bn_momentum, axis_name='batch')
         else:
             self.norm = nn.LayerNorm()
 
@@ -56,7 +58,7 @@ class SequenceLayer(nn.Module):
         """
         Compute the LxH output of S5 layer given an LxH input.
         Args:
-             x (float32): input sequence (L, d_model)
+            x (float32): input sequence (L, d_model)
         Returns:
             output sequence (float32): (L, d_model)
         """
@@ -80,11 +82,13 @@ class SequenceLayer(nn.Module):
             x = self.drop(x)
         elif self.activation in ["gelu"]:
             x = self.drop(nn.gelu(x))
+        elif self.activation in [None]:
+            x = x
         else:
             raise NotImplementedError(
-                   "Activation: {} not implemented".format(self.activation))
-
-        x = skip + x
+                "Activation: {} not implemented".format(self.activation))
+        if self.use_skip:
+            x = skip + x
         if not self.prenorm:
             x = self.norm(x)
         return x

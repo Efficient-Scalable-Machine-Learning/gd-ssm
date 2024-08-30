@@ -1,7 +1,8 @@
 import argparse
 from s5.utils.util import str2bool
-from s5.train import train
-from s5.dataloading import Datasets
+#from s5.train import train
+from s5.normal_token_construct import train
+#from s5.dataloading import Datasets
 
 if __name__ == "__main__":
 
@@ -15,19 +16,19 @@ if __name__ == "__main__":
 						help="wandb entity name, e.g. username")
 	parser.add_argument("--dir_name", type=str, default='./cache_dir',
 						help="name of directory where data is cached")
-	parser.add_argument("--dataset", type=str, choices=Datasets.keys(),
-						default='mnist-classification',
+	parser.add_argument("--dataset", type=str, choices=['D2_scalar','D2_vector'],
+						default='D2_scalar',
 						help="dataset name")
 
 	# Model Parameters
-	parser.add_argument("--n_layers", type=int, default=6,
+	parser.add_argument("--n_layers", type=int, default=1,
 						help="Number of layers in the network")
-	parser.add_argument("--d_model", type=int, default=128,
+	parser.add_argument("--d_model", type=int, default=10,
 						help="Number of features, i.e. H, "
 							 "dimension of layer inputs/outputs")
-	parser.add_argument("--ssm_size_base", type=int, default=256,
+	parser.add_argument("--ssm_size_base", type=int, default=10,
 						help="SSM Latent size, i.e. P")
-	parser.add_argument("--blocks", type=int, default=8,
+	parser.add_argument("--blocks", type=int, default=2,
 						help="How many blocks, J, to initialize with")
 	parser.add_argument("--C_init", type=str, default="trunc_standard_normal",
 						choices=["trunc_standard_normal", "lecun_normal", "complex_normal"],
@@ -36,13 +37,13 @@ if __name__ == "__main__":
 							 "lecun_normal sample from lecun normal, then multiply by V\\ " \
 							 "complex_normal: sample directly from complex standard normal")
 	parser.add_argument("--discretization", type=str, default="zoh", choices=["zoh", "bilinear"])
-	parser.add_argument("--mode", type=str, default="pool", choices=["pool", "last"],
+	parser.add_argument("--mode", type=str, default="last", choices=["pool", "last"],
 						help="options: (for classification tasks) \\" \
 							 " pool: mean pooling \\" \
 							 "last: take last element")
-	parser.add_argument("--activation_fn", default="half_glu1", type=str,
-						choices=["full_glu", "half_glu1", "half_glu2", "gelu"])
-	parser.add_argument("--conj_sym", type=str2bool, default=True,
+	parser.add_argument("--activation_fn", default=None,
+						choices=["full_glu", "half_glu1", "half_glu2", "gelu",None])
+	parser.add_argument("--conj_sym", type=str2bool, default=False,
 						help="whether to enforce conjugate symmetry")
 	parser.add_argument("--clip_eigs", type=str2bool, default=False,
 						help="whether to enforce the left-half plane condition")
@@ -54,21 +55,21 @@ if __name__ == "__main__":
 						help="max value to sample initial timescale params from")
 
 	# Optimization Parameters
-	parser.add_argument("--prenorm", type=str2bool, default=True,
+	parser.add_argument("--prenorm", type=str2bool, default=False,
 						help="True: use prenorm, False: use postnorm")
-	parser.add_argument("--batchnorm", type=str2bool, default=True,
+	parser.add_argument("--batchnorm", type=str2bool, default=False,
 						help="True: use batchnorm, False: use layernorm")
 	parser.add_argument("--bn_momentum", type=float, default=0.95,
 						help="batchnorm momentum")
 	parser.add_argument("--bsz", type=int, default=64,
 						help="batch size")
-	parser.add_argument("--epochs", type=int, default=100,
+	parser.add_argument("--epochs", type=int, default=100000,
 						help="max number of epochs")
 	parser.add_argument("--early_stop_patience", type=int, default=1000,
 						help="number of epochs to continue training when val loss plateaus")
-	parser.add_argument("--ssm_lr_base", type=float, default=1e-3,
+	parser.add_argument("--ssm_lr_base", type=float, default=1e-4,
 						help="initial ssm learning rate")
-	parser.add_argument("--lr_factor", type=float, default=1,
+	parser.add_argument("--lr_factor", type=float, default=2,
 						help="global learning rate = lr_factor*ssm_lr_base")
 	parser.add_argument("--dt_global", type=str2bool, default=False,
 						help="Treat timescale parameter as global parameter or SSM parameter")
