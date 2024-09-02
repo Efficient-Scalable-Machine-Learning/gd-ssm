@@ -357,8 +357,10 @@ def train_epoch(state, rng, model, trainloader, seq_len, in_dim, batchnorm, lr_p
 
     decay_function, ssm_lr, lr, step, end_step, opt_config, lr_min = lr_params
 
-    for batch_idx, batch in enumerate(tqdm(trainloader)):
-        inputs, labels, integration_times = prep_batch(batch, seq_len, in_dim)
+    for batch_idx, batch in enumerate(trainloader):
+        #inputs, labels, integration_times = prep_batch(batch, seq_len, in_dim)
+        inputs, labels, _ = trainloader
+        integration_times = np.ones((len(inputs), seq_len))
         rng, drop_rng = jax.random.split(rng)
         state, loss = train_step(
             state,
@@ -371,7 +373,7 @@ def train_epoch(state, rng, model, trainloader, seq_len, in_dim, batchnorm, lr_p
         )
         batch_losses.append(loss)
         lr_params = (decay_function, ssm_lr, lr, step, end_step, opt_config, lr_min)
-        state, step = update_learning_rate_per_step(lr_params, state)
+        #state, step = update_learning_rate_per_step(lr_params, state)
 
     # Return average loss over batches
     return state, np.mean(np.array(batch_losses)), step
@@ -381,27 +383,26 @@ def validate(state, model, testloader, seq_len, in_dim, batchnorm, step_rescale=
     """Validation function that loops over batches"""
     model = model(training=False, step_rescale=step_rescale)
     losses, accuracies, preds = np.array([]), np.array([]), np.array([])
-    for batch_idx, batch in enumerate(tqdm(testloader)):
-        inputs, labels, integration_timesteps = prep_batch(batch, seq_len, in_dim)
-        loss, acc, pred = eval_step(inputs, labels, integration_timesteps, state, model, batchnorm)
+    for batch_idx, batch in enumerate(testloader):
+        inputs, labels, _ = testloader
+        integration_timesteps = np.ones((len(inputs), seq_len))
+        loss, _ = eval_step(inputs, labels, integration_timesteps, state, model, batchnorm)
         losses = np.append(losses, loss)
-        accuracies = np.append(accuracies, acc)
 
-    aveloss, aveaccu = np.mean(losses), np.mean(accuracies)
-    return aveloss, aveaccu
+    aveloss = np.mean(losses)    
+    return aveloss
 
 
 @partial(jax.jit, static_argnums=(5, 6))
 def train_step(state,
-               rng,
-               batch_inputs,
-               batch_labels,
-               batch_integration_timesteps,
-               model,
-               batchnorm,
-               ):
+            rng,
+            batch_inputs,
+            batch_labels,
+            batch_integration_timesteps,
+            model,
+            batchnorm,
+            ):
     """Performs a single training step given a batch of data"""
-
     def loss_fn(params):
 
         if batchnorm:
@@ -418,9 +419,9 @@ def train_step(state,
                 rngs={"dropout": rng},
                 mutable=["intermediates"],
             )
-
-        # loss = np.mean(cross_entropy_loss(logits, batch_labels))
-        loss = np.mean(mse_loss(logits, batch_labels))
+        logits = (logits[:,-1])*-1
+        #logits = logits[:,-1]
+        loss = compute_loss(logits, batch_labels[:,-1])
 
         return loss, (mod_vars, logits)
 
@@ -435,24 +436,29 @@ def train_step(state,
 
 @partial(jax.jit, static_argnums=(4, 5))
 def eval_step(batch_inputs,
-              batch_labels,
-              batch_integration_timesteps,
-              state,
-              model,
-              batchnorm,
-              ):
+            batch_labels,
+            batch_integration_timesteps,
+            state,
+            model,
+            batchnorm,
+            ):
     if batchnorm:
         logits = model.apply({"params": state.params, "batch_stats": state.batch_stats},
-                             batch_inputs, batch_integration_timesteps,
-                             )
+                            batch_inputs, batch_integration_timesteps,
+                            )
     else:
         logits = model.apply({"params": state.params},
-                             batch_inputs, batch_integration_timesteps,
-                             )
+                            batch_inputs, batch_integration_timesteps,
+                            )
+    logits = (logits[:,-1])*-1
+    batch_labels = batch_labels[:,-1]
+    #logits,batch_labels = logits[:,-1],batch_labels[:,-1]
+    losses = compute_loss(logits, batch_labels)
+    #accs = compute_accuracy(logits, batch_labels)
 
-    # losses = cross_entropy_loss(logits, batch_labels)
-    losses = mse_loss(logits, batch_labels)
-    # accs = compute_accuracy(logits, batch_labels)
-    accs = compute_rmse(logits, batch_labels)
+    return losses, logits
 
-    return losses, accs, logits
+def compute_loss(preds, targets):
+    assert preds.shape == targets.shape
+    return 0.5*np.sum((targets-preds)**2)/targets.shape[0]
+
