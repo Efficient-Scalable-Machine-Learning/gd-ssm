@@ -134,10 +134,11 @@ def train(args):
             decay_function = linear_warmup
             end_step = steps_per_epoch * args.warmup_end
 
-        # elif args.cosine_anneal:
-        #     print("using cosine annealing for epoch {}".format(epoch+1))
-        #     decay_function = cosine_annealing
-            # for per step learning rate decay
+        elif args.cosine_anneal:
+            if (epoch+1) % 100 ==0:
+                print("using cosine annealing for epoch {}".format(epoch+1))
+            decay_function = cosine_annealing
+            #for per step learning rate decay
             end_step = steps_per_epoch * args.epochs - (steps_per_epoch * args.warmup_end)
         else:
             #print("using constant lr for epoch {}".format(epoch+1))
