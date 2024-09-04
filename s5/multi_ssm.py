@@ -75,22 +75,24 @@ def apply_ssm(Lambda_bar, B_bar, C_tilde,w_q, D, input_sequence, conj_sym, bidir
         Returns:
             ys (float32): the SSM outputs (S5 layer preactivations)      (L, H)
     """
-    # import pdb
-    # pdb.set_trace()
     n = 3  # number of elements in each input, triplet in SICL model
     stride = 2  # step size between the start of each triplet
     num_windows = (len(input_sequence) - n) // stride + 1     # Calculate the number of windows
     indices = np.arange(num_windows)[:, None] * stride + np.arange(n) #triplet positions
     transformed_sequence = input_sequence[indices] #triplet sequence
     lsa_sequence  = jax.vmap(local_self_attention,in_axes=(0,None))(transformed_sequence,w_q)    
-
     state_init = np.zeros((input_sequence.shape[1],input_sequence.shape[1])) # recurrent state matrix initialisation
-
-    def f(carry, inp):
-        carry = Lambda_bar@carry+inp
-        return carry,carry
-
-    zs, _ = jax.lax.scan(f, state_init, lsa_sequence)
+    zs_ls = []
+    for col in range(input_sequence.shape[1]):
+        state_vec = state_init[:,col]
+        lsa_vec = lsa_sequence[:,:,col] 
+        rec_param = Lambda_bar[:,col]
+        def f(carry, inp):
+            carry = rec_param*carry+inp
+            return carry,carry
+        zs_out, _ = jax.lax.scan(f, state_vec, lsa_vec)
+        zs_ls.append(zs_out)
+    zs = np.vstack(zs_ls)
     zs = C_tilde @ zs # State transformation #TODO - currently operation only on querry data
     os = transformed_sequence[-1].T @ D #TODO - move this transformation to train step
     os = zs @ os    
