@@ -1,3 +1,4 @@
+import os
 import wandb
 from jax.scipy.linalg import block_diag
 from s5.multi_ssm import init_multi_S5SSM
@@ -7,11 +8,12 @@ from ml_collections import config_dict
 from tqdm import tqdm
 from jax import random
 from flax import linen as nn
+from flax.training import checkpoints
 from s5.train_helpers import create_train_state,reduce_lr_on_plateau,\
     linear_warmup, cosine_annealing, constant_lr, train_epoch, validate
 
 from transformer.src.transformer import Transformer
-from transformer.src.data import create_reg_data_classic_token, create_weights
+from transformer.src.data import create_reg_data_classic_token, create_weights, create_vec_reg_data_classic_token
 from transformer.src.config import config 
 from transformer.src.train import *
 
@@ -24,18 +26,23 @@ def train(args):
         wandb.init(project=args.wandb_project, job_type='model_training', config=vars(args), entity=args.wandb_entity)
     retrieval = False
     padded = False
-    #seq_len = config.dataset_size
-    seq_len = 21
+    seq_len = args.dataset_size
     in_dim = 10 # Before embedding
     padded = False
     ssm_lr = args.ssm_lr_base
     lr = args.lr_factor * ssm_lr
     ### Data
-    
-    data_creator = vmap(create_reg_data_classic_token,
-                        in_axes=(0, None, None, None, None, None),
-                        out_axes=0)
-    
+    if args.dataset in ["D2_scalar"]:
+        data_creator = vmap(create_reg_data_classic_token,
+                            in_axes=(0, None, None, None, None, None),
+                            out_axes=0)
+    elif args.dataset in ["D2_vector"]:
+        data_creator = vmap(create_vec_reg_data_classic_token,
+                            in_axes=(0, None, None, None, None, None),
+                            out_axes=0)
+    else:
+        raise NotImplementedError("dataset method {} not implemented".format(args.dataset))
+        
     ##Multi-SSM
     ssm_size = args.ssm_size_base
     block_size = int(ssm_size / args.blocks)
@@ -173,3 +180,8 @@ def train(args):
             print(
                 f"\tTrain Loss: {train_loss:.5f} -- Val Loss: {val_loss:.5f}"
                 )
+ #save model checkpoint
+    if not os.path.isdir(os.path.join(args.dir_name, 'checkpoints')):
+        os.makedirs(os.path.join(args.dir_name, 'checkpoints'))
+    checkpoints.save_checkpoint(ckpt_dir=os.path.join(os.path.abspath(args.dir_name),'checkpoints'), target=state, step=0)
+    

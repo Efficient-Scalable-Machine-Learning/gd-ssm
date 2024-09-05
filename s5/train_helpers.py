@@ -419,9 +419,10 @@ def train_step(state,
                 rngs={"dropout": rng},
                 mutable=["intermediates"],
             )
-        logits = (logits[:,-1])
+        #logits = (logits[:,-1])
         #logits = logits[:,-1]
-        loss = compute_loss(logits, batch_labels[:,-1])
+        #loss = compute_loss(logits, batch_labels[:,-1])
+        loss = compute_loss(logits, batch_labels)
 
         return loss, (mod_vars, logits)
 
@@ -450,8 +451,8 @@ def eval_step(batch_inputs,
         logits = model.apply({"params": state.params},
                             batch_inputs, batch_integration_timesteps,
                             )
-    logits = (logits[:,-1])
-    batch_labels = batch_labels[:,-1]
+    #logits = (logits[:,-1])
+    #batch_labels = batch_labels[:,-1]
     #logits,batch_labels = logits[:,-1],batch_labels[:,-1]
     losses = compute_loss(logits, batch_labels)
     #accs = compute_accuracy(logits, batch_labels)
@@ -460,5 +461,5 @@ def eval_step(batch_inputs,
 
 def compute_loss(preds, targets):
     assert preds.shape == targets.shape
-    return 0.5*np.sum((targets-preds)**2)/targets.shape[0]
+    return 0.5*np.sum((targets-preds)**2)/(targets.shape[0]*targets.shape[1])
 
