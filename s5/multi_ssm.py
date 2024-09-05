@@ -79,6 +79,7 @@ def apply_ssm(Lambda_bar, B_bar, C_tilde,w_q, D, input_sequence, conj_sym, bidir
     stride = 2  # step size between the start of each triplet
     num_windows = (len(input_sequence) - n) // stride + 1     # Calculate the number of windows
     indices = np.arange(num_windows)[:, None] * stride + np.arange(n) #triplet positions
+    
     transformed_sequence = input_sequence[indices] #triplet sequence
     lsa_sequence  = jax.vmap(local_self_attention,in_axes=(0,None))(transformed_sequence,w_q)    
     state_init = np.zeros((input_sequence.shape[1],input_sequence.shape[1])) # recurrent state matrix initialisation

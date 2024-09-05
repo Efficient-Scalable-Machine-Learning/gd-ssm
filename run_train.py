@@ -19,6 +19,9 @@ if __name__ == "__main__":
 	parser.add_argument("--dataset", type=str, choices=['D2_scalar','D2_vector'],
 						default='D2_scalar',
 						help="dataset name")
+	parser.add_argument("--dataset_size", type=int,
+						default=10,
+						help="incontext data size")
 
 	# Model Parameters
 	parser.add_argument("--n_layers", type=int, default=1,
