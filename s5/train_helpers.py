@@ -419,7 +419,7 @@ def train_step(state,
                 rngs={"dropout": rng},
                 mutable=["intermediates"],
             )
-        logits = (logits[:,-1])*-1
+        logits = (logits[:,-1])
         #logits = logits[:,-1]
         loss = compute_loss(logits, batch_labels[:,-1])
 
@@ -450,7 +450,7 @@ def eval_step(batch_inputs,
         logits = model.apply({"params": state.params},
                             batch_inputs, batch_integration_timesteps,
                             )
-    logits = (logits[:,-1])*-1
+    logits = (logits[:,-1])
     batch_labels = batch_labels[:,-1]
     #logits,batch_labels = logits[:,-1],batch_labels[:,-1]
     losses = compute_loss(logits, batch_labels)

@@ -12,7 +12,7 @@ from s5.train_helpers import create_train_state,reduce_lr_on_plateau,\
 
 from transformer.src.transformer import Transformer
 from transformer.src.data import create_reg_data_classic_token, create_weights
-from transformer.src.config import config
+from transformer.src.config import config 
 from transformer.src.train import *
 
 def train(args):
@@ -90,8 +90,8 @@ def train(args):
     init_rng, train_rng , data_rng,eval_rng= random.split(key, num=4)
     #Create eval data
     eval_data = data_creator(jax.random.split(eval_rng, num=10000),
-                                    10,
-                                    10,
+                                    10, 
+                                    args.dataset_size,
                                     config.size_distract,
                                     config.input_range,
                                     config.weight_scale)
@@ -123,7 +123,7 @@ def train(args):
         rng, data_rng = jax.random.split(data_rng, 2)
         trainloader = data_creator(jax.random.split(rng, num=args.bsz), 
                                     10,
-                                    10, #config.dataset_size
+                                    args.dataset_size,
                                     config.size_distract,
                                     config.input_range,
                                     config.weight_scale)
