@@ -347,7 +347,7 @@ def prep_batch(batch: tuple,
     return full_inputs, targets.astype(float), integration_timesteps
 
 
-def train_epoch(state, rng, model, trainloader, seq_len, in_dim, batchnorm, lr_params):
+def train_epoch(state, rng, model, trainloader, seq_len, in_dim, batchnorm,dataset,lr_params):
     """
     Training function for an epoch that loops over batches.
     """
@@ -370,6 +370,7 @@ def train_epoch(state, rng, model, trainloader, seq_len, in_dim, batchnorm, lr_p
             integration_times,
             model,
             batchnorm,
+            dataset,
         )
         batch_losses.append(loss)
         lr_params = (decay_function, ssm_lr, lr, step, end_step, opt_config, lr_min)
@@ -379,21 +380,21 @@ def train_epoch(state, rng, model, trainloader, seq_len, in_dim, batchnorm, lr_p
     return state, np.mean(np.array(batch_losses)), step
 
 
-def validate(state, model, testloader, seq_len, in_dim, batchnorm, step_rescale=1.0):
+def validate(state, model, testloader, seq_len, in_dim, batchnorm,dataset, step_rescale=1.0):
     """Validation function that loops over batches"""
     model = model(training=False, step_rescale=step_rescale)
     losses, accuracies, preds = np.array([]), np.array([]), np.array([])
     for batch_idx, batch in enumerate(testloader):
         inputs, labels, _ = testloader
         integration_timesteps = np.ones((len(inputs), seq_len))
-        loss, _ = eval_step(inputs, labels, integration_timesteps, state, model, batchnorm)
+        loss, _ = eval_step(inputs, labels, integration_timesteps, state, model, batchnorm,dataset)
         losses = np.append(losses, loss)
 
     aveloss = np.mean(losses)    
     return aveloss
 
 
-@partial(jax.jit, static_argnums=(5, 6))
+@partial(jax.jit, static_argnums=(5,6,7))
 def train_step(state,
             rng,
             batch_inputs,
@@ -401,6 +402,7 @@ def train_step(state,
             batch_integration_timesteps,
             model,
             batchnorm,
+            dataset,
             ):
     """Performs a single training step given a batch of data"""
     def loss_fn(params):
@@ -419,10 +421,12 @@ def train_step(state,
                 rngs={"dropout": rng},
                 mutable=["intermediates"],
             )
-        #logits = (logits[:,-1])
-        #logits = logits[:,-1]
-        #loss = compute_loss(logits, batch_labels[:,-1])
-        loss = compute_loss(logits, batch_labels)
+        if dataset in ['normal_construct_scalar']:
+            logits = (logits[:,-1])
+            loss = compute_loss(logits, batch_labels[:,-1])
+        else:
+            loss = compute_loss(logits, batch_labels)
+            loss = loss/(logits.shape[1])
 
         return loss, (mod_vars, logits)
 
@@ -435,13 +439,14 @@ def train_step(state,
     return state, loss
 
 
-@partial(jax.jit, static_argnums=(4, 5))
+@partial(jax.jit, static_argnums=(4,5,6))
 def eval_step(batch_inputs,
             batch_labels,
             batch_integration_timesteps,
             state,
             model,
             batchnorm,
+            dataset,
             ):
     if batchnorm:
         logits = model.apply({"params": state.params, "batch_stats": state.batch_stats},
@@ -451,15 +456,17 @@ def eval_step(batch_inputs,
         logits = model.apply({"params": state.params},
                             batch_inputs, batch_integration_timesteps,
                             )
-    #logits = (logits[:,-1])
-    #batch_labels = batch_labels[:,-1]
-    #logits,batch_labels = logits[:,-1],batch_labels[:,-1]
-    losses = compute_loss(logits, batch_labels)
-    #accs = compute_accuracy(logits, batch_labels)
-
+    if dataset in ['normal_construct_scalar']:
+        losses = compute_loss(logits[:,-1], batch_labels[:,-1])
+    else:
+        losses = compute_loss(logits, batch_labels)
+        losses = losses/(logits.shape[1])
     return losses, logits
 
 def compute_loss(preds, targets):
+    """
+    root-mean square loss
+    """
     assert preds.shape == targets.shape
-    return 0.5*np.sum((targets-preds)**2)/(targets.shape[0]*targets.shape[1])
+    return 0.5*np.sum((targets-preds)**2)/(targets.shape[0])
 
