@@ -62,7 +62,7 @@ def local_self_attention(x,w_q):
     """
     return x.T @ w_q @ x
 
-def apply_ssm(Lambda_bar, B_bar, C_tilde,w_q, D, input_sequence, conj_sym, bidirectional):
+def apply_ssm(Lambda_bar, C_tilde,w_q, D, input_sequence, conj_sym, bidirectional):
     """ Compute the LxH output of discretized SSM given an LxH input.
         Args:
             Lambda_bar (complex64): discretized diagonal state matrix    (P,)
@@ -115,6 +115,8 @@ class multi_S5SSM(nn.Module):
     clip_eigs: bool = False
     bidirectional: bool = False
     step_rescale: float = 1.0
+    gd_params: bool = False
+    gd_lr: float = 1e-4
 
     """ The S5 SSM
         Args:
@@ -151,107 +153,114 @@ class multi_S5SSM(nn.Module):
         """Initializes parameters once and performs discretization each time
            the SSM is applied to a sequence
         """
-        self.w_q = self.param('w_q', nn.initializers.normal(stddev=0.1), (3, 3)) # Local Self Attention parameter
-        if self.conj_sym:
-            # Need to account for case where we actually sample real B and C, and then multiply
-            # by the half sized Vinv and possibly V
-            local_P = 2*self.P
+        if self.gd_params:
+            self.Lambda_re = self.param("Lambda_re", lambda rng, shape: self.Lambda_re_init, (None,))
+            self.w_q = np.outer(np.array([1,0,0]), np.array([0,1,0]))
+            self.Lambda_bar = np.ones((10, 10))
+            self.C_tilde = -(self.gd_lr/self.P)*np.eye(10)
+            self.D = np.array([0,0,1])
         else:
-            local_P = self.P
+            self.w_q = self.param('w_q', nn.initializers.normal(stddev=0.1), (3, 3)) # Local Self Attention parameter
+            if self.conj_sym:
+                # Need to account for case where we actually sample real B and C, and then multiply
+                # by the half sized Vinv and possibly V
+                local_P = 2*self.P
+            else:
+                local_P = self.P
 
-        # Initialize diagonal state to state matrix Lambda (eigenvalues)
-        self.Lambda_re = self.param("Lambda_re", lambda rng, shape: self.Lambda_re_init, (None,))
-        #self.Lambda_im = self.param("Lambda_im", lambda rng, shape: self.Lambda_im_init, (None,))
-        if self.clip_eigs:
-            #self.Lambda = np.clip(self.Lambda_re, None, -1e-4) + 1j * self.Lambda_im 
-            #self.Lambda = np.clip(self.Lambda_re, None, -1e-4) + 1j * jax.numpy.zeros_like(self.Lambda_im) # FIXME- Enforcing the complex term to zero
-            self.Lambda = np.clip(self.Lambda_re, None, -1e-4)
-        else:
-            self.Lambda = self.Lambda_re
-            #self.Lambda = self.Lambda_re + 1j * jax.numpy.zeros_like(self.Lambda_im) # FIXME- Enforcing the complex term to zero
+            # Initialize diagonal state to state matrix Lambda (eigenvalues)
+            self.Lambda_re = self.param("Lambda_re", lambda rng, shape: self.Lambda_re_init, (None,))
+            #self.Lambda_im = self.param("Lambda_im", lambda rng, shape: self.Lambda_im_init, (None,))
+            if self.clip_eigs:
+                #self.Lambda = np.clip(self.Lambda_re, None, -1e-4) + 1j * self.Lambda_im 
+                #self.Lambda = np.clip(self.Lambda_re, None, -1e-4) + 1j * jax.numpy.zeros_like(self.Lambda_im) # FIXME- Enforcing the complex term to zero
+                self.Lambda = np.clip(self.Lambda_re, None, -1e-4)
+            else:
+                self.Lambda = self.Lambda_re
+                #self.Lambda = self.Lambda_re + 1j * jax.numpy.zeros_like(self.Lambda_im) # FIXME- Enforcing the complex term to zero
 
-        # Initialize input to state (B) matrix
-        B_init = lecun_normal()
-        B_shape = (local_P, self.H)
-        self.B = self.param("B",
-                            lambda rng, shape: init_VinvB(B_init,
-                                                          rng,
-                                                          shape,
-                                                          self.Vinv),
-                            B_shape)
-        #B_tilde = self.B[..., 0] + 1j * self.B[..., 1]
-        #B_tilde = self.B[..., 0] + 1j * jax.numpy.zeros_like(self.B[..., 1]) #FIXME - enforcing the complex term to zero
-        B_tilde = self.B
+            # Initialize input to state (B) matrix
+            B_init = lecun_normal()
+            B_shape = (local_P, self.H)
+            self.B = self.param("B",
+                                lambda rng, shape: init_VinvB(B_init,
+                                                            rng,
+                                                            shape,
+                                                            self.Vinv),
+                                B_shape)
+            #B_tilde = self.B[..., 0] + 1j * self.B[..., 1]
+            #B_tilde = self.B[..., 0] + 1j * jax.numpy.zeros_like(self.B[..., 1]) #FIXME - enforcing the complex term to zero
+            B_tilde = self.B
 
-        # Initialize state to output (C) matrix
-        if self.C_init in ["trunc_standard_normal"]:
-            C_init = trunc_standard_normal
-            C_shape = (self.H, local_P, 2)
-        elif self.C_init in ["lecun_normal"]:
-            C_init = lecun_normal()
-            C_shape = (self.H, local_P, 2)
-        elif self.C_init in ["complex_normal"]:
-            C_init = normal(stddev=0.5 ** 0.5)
-        else:
-            raise NotImplementedError(
-                   "C_init method {} not implemented".format(self.C_init))
+            # Initialize state to output (C) matrix
+            if self.C_init in ["trunc_standard_normal"]:
+                C_init = trunc_standard_normal
+                C_shape = (self.H, local_P, 2)
+            elif self.C_init in ["lecun_normal"]:
+                C_init = lecun_normal()
+                C_shape = (self.H, local_P, 2)
+            elif self.C_init in ["complex_normal"]:
+                C_init = normal(stddev=0.5 ** 0.5)
+            else:
+                raise NotImplementedError(
+                    "C_init method {} not implemented".format(self.C_init))
 
-        if self.C_init in ["complex_normal"]:
-            if self.bidirectional:
-                C = self.param("C", C_init, (self.H, 2 * self.P, 2))
-                #self.C_tilde = C[..., 0] + 1j * C[..., 1]
-                #self.C_tilde = C[..., 0] + 1j * jax.numpy.zeros_like(C[..., 1])
-                self.C_tilde = C
+            if self.C_init in ["complex_normal"]:
+                if self.bidirectional:
+                    C = self.param("C", C_init, (self.H, 2 * self.P, 2))
+                    #self.C_tilde = C[..., 0] + 1j * C[..., 1]
+                    #self.C_tilde = C[..., 0] + 1j * jax.numpy.zeros_like(C[..., 1])
+                    self.C_tilde = C
+
+                else:
+                    C = self.param("C", C_init, (self.H, self.P, 2))
+                    #self.C_tilde = C[..., 0] + 1j * C[..., 1]
+                    #self.C_tilde = C[..., 0] + 1j * jax.numpy.zeros_like(C[..., 1])
+                    self.C_tilde = C
 
             else:
-                C = self.param("C", C_init, (self.H, self.P, 2))
-                #self.C_tilde = C[..., 0] + 1j * C[..., 1]
-                #self.C_tilde = C[..., 0] + 1j * jax.numpy.zeros_like(C[..., 1])
-                self.C_tilde = C
+                if self.bidirectional:
+                    self.C1 = self.param("C1",
+                                        lambda rng, shape: init_CV(C_init, rng, shape, self.V),
+                                        C_shape)
+                    self.C2 = self.param("C2",
+                                        lambda rng, shape: init_CV(C_init, rng, shape, self.V),
+                                        C_shape)
 
-        else:
-            if self.bidirectional:
-                self.C1 = self.param("C1",
-                                     lambda rng, shape: init_CV(C_init, rng, shape, self.V),
-                                     C_shape)
-                self.C2 = self.param("C2",
-                                     lambda rng, shape: init_CV(C_init, rng, shape, self.V),
-                                     C_shape)
+                    C1 = self.C1[..., 0] + 1j * self.C1[..., 1]
+                    C2 = self.C2[..., 0] + 1j * self.C2[..., 1]
+                    self.C_tilde = np.concatenate((C1, C2), axis=-1)
 
-                C1 = self.C1[..., 0] + 1j * self.C1[..., 1]
-                C2 = self.C2[..., 0] + 1j * self.C2[..., 1]
-                self.C_tilde = np.concatenate((C1, C2), axis=-1)
+                else:
+                    self.C = self.param("C",
+                                        lambda rng, shape: init_CV(C_init, rng, shape, self.V),
+                                        C_shape)
 
-            else:
-                self.C = self.param("C",
-                                    lambda rng, shape: init_CV(C_init, rng, shape, self.V),
-                                    C_shape)
+                # self.C_tilde = self.C[..., 0] + 1j * self.C[..., 1]
+                    #self.C_tilde = self.C[..., 0] + 1j * jax.numpy.zeros_like(self.C[..., 1])  #FIXME - enforcing the complex term to zero
+                    self.C_tilde = self.C
 
-               # self.C_tilde = self.C[..., 0] + 1j * self.C[..., 1]
-                #self.C_tilde = self.C[..., 0] + 1j * jax.numpy.zeros_like(self.C[..., 1])  #FIXME - enforcing the complex term to zero
-                self.C_tilde = self.C
+            # Initialize feedthrough (D) matrix
+            #self.D = self.param("D", normal(stddev=1.0), (self.H,))
+            self.D = self.param("D", normal(stddev=1.0), (3,))
+            lambda_bar_all = []
+            log_step_all = []
+            # Initialize learnable discretization timescale value
+            self.log_step = self.param("log_step",
+                                        init_log_steps,
+                                        (self.P, self.dt_min, self.dt_max)) #TODO - seperate logstep parameter for each recurrent params
+            for param_id in range(self.Lambda_re.shape[0]):
+                step = self.step_rescale * np.exp(self.log_step[:, 0])
 
-        # Initialize feedthrough (D) matrix
-        #self.D = self.param("D", normal(stddev=1.0), (self.H,))
-        self.D = self.param("D", normal(stddev=1.0), (3,))
-        lambda_bar_all = []
-        log_step_all = []
-        # Initialize learnable discretization timescale value
-        self.log_step = self.param("log_step",
-                                    init_log_steps,
-                                    (self.P, self.dt_min, self.dt_max)) #TODO - seperate logstep parameter for each recurrent params
-        for param_id in range(self.Lambda_re.shape[0]):
-            step = self.step_rescale * np.exp(self.log_step[:, 0])
-
-            # Discretize
-            if self.discretization in ["zoh"]:
-                self.Lambda_bar, self.B_bar = discretize_zoh(self.Lambda[param_id,:], B_tilde, step)
-            elif self.discretization in ["bilinear"]:
-                self.Lambda_bar, self.B_bar = discretize_bilinear(self.Lambda[param_id,:], B_tilde, step)
-            else:
-                raise NotImplementedError("Discretization method {} not implemented".format(self.discretization))
-            lambda_bar_all.append(self.Lambda_bar)
-        self.Lambda_bar = np.vstack(lambda_bar_all)
+                # Discretize
+                if self.discretization in ["zoh"]:
+                    self.Lambda_bar, self.B_bar = discretize_zoh(self.Lambda[param_id,:], B_tilde, step)
+                elif self.discretization in ["bilinear"]:
+                    self.Lambda_bar, self.B_bar = discretize_bilinear(self.Lambda[param_id,:], B_tilde, step)
+                else:
+                    raise NotImplementedError("Discretization method {} not implemented".format(self.discretization))
+                lambda_bar_all.append(self.Lambda_bar)
+            self.Lambda_bar = np.vstack(lambda_bar_all)
 
     def __call__(self, input_sequence):
         """
@@ -263,7 +272,6 @@ class multi_S5SSM(nn.Module):
             output sequence (float32): (L, H)
         """
         ys = apply_ssm(self.Lambda_bar,
-                       self.B_bar,
                        self.C_tilde,
                        self.w_q,
                        self.D,
@@ -288,7 +296,10 @@ def init_multi_S5SSM(H,
                dt_max,
                conj_sym,
                clip_eigs,
-               bidirectional
+               bidirectional,
+               step_rescale,
+               gd_params,
+               gd_lr    
                ):
     """Convenience function that will be used to initialize the SSM.
        Same arguments as defined in multi_S5SSM above."""
@@ -305,4 +316,7 @@ def init_multi_S5SSM(H,
                    dt_max=dt_max,
                    conj_sym=conj_sym,
                    clip_eigs=clip_eigs,
-                   bidirectional=bidirectional)
+                   bidirectional=bidirectional,
+                   step_rescale=step_rescale,
+                   gd_params=gd_params,
+                  gd_lr=gd_lr)   

@@ -45,8 +45,8 @@ class S5layer(nn.Module):
         if self.batchnorm:
             self.norm = nn.BatchNorm(use_running_average=not self.training,
                                     momentum=self.bn_momentum, axis_name='batch')
-        else:
-            self.norm = nn.LayerNorm()
+        # elif self.layernorm:
+        #     self.norm = nn.LayerNorm()
 
         self.drop = nn.Dropout(
             self.dropout,
@@ -89,6 +89,6 @@ class S5layer(nn.Module):
                 "Activation: {} not implemented".format(self.activation))
         if self.use_skip:
             x = skip + x
-        if not self.prenorm:
-            x = self.norm(x)
+        # if not self.prenorm:
+        #     x = self.norm(x)
         return x

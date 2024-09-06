@@ -4,6 +4,7 @@ from jax.scipy.linalg import block_diag
 from s5.multi_ssm import init_multi_S5SSM
 from s5.ssm_init import make_DPLR_HiPPO
 from s5.seq_model import BatchS5Model
+from s5.model_init import model_init
 from ml_collections import config_dict
 from tqdm import tqdm
 from jax import random
@@ -13,7 +14,7 @@ from s5.train_helpers import create_train_state,reduce_lr_on_plateau,\
     linear_warmup, cosine_annealing, constant_lr, train_epoch, validate
 
 from transformer.src.transformer import Transformer
-from transformer.src.data import create_reg_data_classic_token, create_weights, create_vec_reg_data_classic_token
+from transformer.src.data import create_reg_data_classic_token, create_vec_reg_data_classic_token
 from transformer.src.config import config 
 from transformer.src.train import *
 
@@ -24,19 +25,22 @@ def train(args):
     if args.USE_WANDB:
         # Make wandb config dictionary
         wandb.init(project=args.wandb_project, job_type='model_training', config=vars(args), entity=args.wandb_entity)
+    # Set randomness...
+    key = random.PRNGKey(args.jax_seed)
+    init_rng, train_rng , data_rng,eval_rng= random.split(key, num=4)
+    model_cls,state = model_init(args,init_rng,gd_params=False,gd_lr=None)
     retrieval = False
     padded = False
     in_dim = 10 # Before embedding
-    padded = False
     ssm_lr = args.ssm_lr_base
     lr = args.lr_factor * ssm_lr
     ### Data
-    if args.dataset in ["normal_construct_scalar"]:
+    if args.dataset in ["normal_token_scalar"]:
         seq_len = args.dataset_size
         data_creator = vmap(create_reg_data_classic_token,
                             in_axes=(0, None, None, None, None, None),
                             out_axes=0)
-    elif args.dataset in ["normal_construct_vector"]:
+    elif args.dataset in ["normal_token_vector"]:
         seq_len = (args.dataset_size *2) + 1
         data_creator = vmap(create_vec_reg_data_classic_token,
                             in_axes=(0, None, None, None, None, None),
@@ -44,58 +48,6 @@ def train(args):
     else:
         raise NotImplementedError("dataset method {} not implemented".format(args.dataset))
         
-    ##Multi-SSM
-    ssm_size = args.ssm_size_base
-    block_size = int(ssm_size / args.blocks)
-    # Initialize state matrix A using approximation to HiPPO-LegS matrix
-    #TODO - Currently skipping the V^-1 *B and CV matrices.
-    lambda_all = []
-    for _ in range(in_dim):
-        Lambda, _, B, V, B_orig = make_DPLR_HiPPO(block_size)
-        if args.conj_sym:
-            block_size = block_size // 2
-            ssm_size = ssm_size // 2
-        Lambda = Lambda[:block_size]
-        V = V[:, :block_size]
-        Vc = V.conj().T
-    # If initializing state matrix A as block-diagonal, put HiPPO approximation
-    # on each block
-        Lambda = (Lambda * np.ones((args.blocks, block_size))).ravel() # Each row is diagonal recurrent params
-        V = block_diag(*([V] * args.blocks))            
-        Vinv = block_diag(*([Vc] * args.blocks))
-        lambda_all.append(Lambda.real)
-
-    Lambda = jnp.vstack(lambda_all)
-    print("Lambda.shape={}".format(Lambda.shape))
-    print("V.shape={}".format(V.shape))
-    print("Vinv.shape={}".format(Vinv.shape))
-    ssm_init_fn = init_multi_S5SSM(H=args.d_model,
-                                P=ssm_size,
-                                Lambda_re_init=Lambda,
-                                V=V,
-                                Vinv=Vinv,
-                                C_init=args.C_init,
-                                discretization=args.discretization,
-                                dt_min=args.dt_min,
-                                dt_max=args.dt_max,
-                                conj_sym=args.conj_sym,
-                                clip_eigs=args.clip_eigs,
-                                bidirectional=args.bidirectional)
-
-    model_cls = partial(
-                BatchS5Model,
-                ssm=ssm_init_fn,
-                d_model=args.d_model,
-                n_layers=args.n_layers,
-                activation=args.activation_fn,
-                dropout=args.p_dropout,
-    #            mode=args.mode,
-                prenorm=args.prenorm,
-                batchnorm=args.batchnorm,
-            )   
-    # Set randomness...
-    key = random.PRNGKey(args.jax_seed)
-    init_rng, train_rng , data_rng,eval_rng= random.split(key, num=4)
     #Create eval data
     eval_data = data_creator(jax.random.split(eval_rng, num=10000),
                                     10, 
@@ -103,20 +55,6 @@ def train(args):
                                     config.size_distract,
                                     config.input_range,
                                     config.weight_scale)
-    state = create_train_state(model_cls,
-                                init_rng,
-                                padded,
-                                retrieval,
-                                in_dim=in_dim,
-                                bsz=args.bsz,
-                                seq_len=seq_len,
-                                weight_decay=args.weight_decay,
-                                batchnorm=args.batchnorm,
-                                opt_config=args.opt_config,
-                                ssm_lr=ssm_lr,
-                                lr=lr,
-                                dt_global=args.dt_global)
-
     # Training Loop over epochs
     ls_trainloss, ls_valloss = [],[]
     best_loss, best_acc, best_epoch = 100000000, -100000000.0, 0  # This best loss is val_loss
@@ -186,4 +124,19 @@ def train(args):
     if not os.path.isdir(os.path.join(args.dir_name, 'checkpoints')):
         os.makedirs(os.path.join(args.dir_name, 'checkpoints'))
     checkpoints.save_checkpoint(ckpt_dir=os.path.join(os.path.abspath(args.dir_name),'checkpoints'), target=state, step=0,overwrite=True)
+    
+
+### Analysis
+    gd_lr = 1 #TODO: Should be the ideal learning rate from a linear search
+    gd_model_cls,gd_state = model_init(args,init_rng,gd_params=True,gd_lr=gd_lr)
+    gd_val_loss = validate(gd_state,
+                            gd_model_cls,
+                            eval_data,
+                            seq_len,
+                            in_dim,
+                            args.batchnorm,
+                            args.dataset)
+    print(f"Validation loss on the gradient-descent based construction:{gd_val_loss}")
+
+
     

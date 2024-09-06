@@ -421,7 +421,7 @@ def train_step(state,
                 rngs={"dropout": rng},
                 mutable=["intermediates"],
             )
-        if dataset in ['normal_construct_scalar']:
+        if dataset in ['normal_token_scalar']:
             logits = (logits[:,-1])
             loss = compute_loss(logits, batch_labels[:,-1])
         else:
@@ -456,7 +456,7 @@ def eval_step(batch_inputs,
         logits = model.apply({"params": state.params},
                             batch_inputs, batch_integration_timesteps,
                             )
-    if dataset in ['normal_construct_scalar']:
+    if dataset in ['normal_token_scalar']:
         losses = compute_loss(logits[:,-1], batch_labels[:,-1])
     else:
         losses = compute_loss(logits, batch_labels)
