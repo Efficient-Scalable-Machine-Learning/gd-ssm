@@ -94,7 +94,7 @@ def apply_ssm(Lambda_bar, B_bar, C_tilde,w_q, D, input_sequence, conj_sym, bidir
         zs_out, _ = jax.lax.scan(f, state_vec, lsa_vec)
         zs_ls.append(zs_out)
     zs = np.vstack(zs_ls)
-    zs = C_tilde @ zs # State transformation #TODO - currently operation only on querry data
+    zs = C_tilde @ zs # State transformation #TODO - currently operation only on query data
     os = transformed_sequence[-1].T @ D #TODO - move this transformation to train step
     os = zs @ os    
     return os

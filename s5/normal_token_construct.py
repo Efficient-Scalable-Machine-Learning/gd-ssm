@@ -26,17 +26,18 @@ def train(args):
         wandb.init(project=args.wandb_project, job_type='model_training', config=vars(args), entity=args.wandb_entity)
     retrieval = False
     padded = False
-    seq_len = args.dataset_size
     in_dim = 10 # Before embedding
     padded = False
     ssm_lr = args.ssm_lr_base
     lr = args.lr_factor * ssm_lr
     ### Data
-    if args.dataset in ["D2_scalar"]:
+    if args.dataset in ["normal_construct_scalar"]:
+        seq_len = args.dataset_size
         data_creator = vmap(create_reg_data_classic_token,
                             in_axes=(0, None, None, None, None, None),
                             out_axes=0)
-    elif args.dataset in ["D2_vector"]:
+    elif args.dataset in ["normal_construct_vector"]:
+        seq_len = (args.dataset_size *2) + 1
         data_creator = vmap(create_vec_reg_data_classic_token,
                             in_axes=(0, None, None, None, None, None),
                             out_axes=0)
@@ -102,7 +103,6 @@ def train(args):
                                     config.size_distract,
                                     config.input_range,
                                     config.weight_scale)
-
     state = create_train_state(model_cls,
                                 init_rng,
                                 padded,
@@ -164,13 +164,15 @@ def train(args):
                                                 seq_len,
                                                 in_dim,
                                                 args.batchnorm,
+                                                args.dataset,
                                                 lr_params)
         val_loss = validate(state,
                                     model_cls,
                                     eval_data,
                                     seq_len,
                                     in_dim,
-                                    args.batchnorm)
+                                    args.batchnorm,
+                                    args.dataset)
         if args.USE_WANDB:
             wandb.log({"train_loss": train_loss, "val_loss": val_loss})
         ls_trainloss.append(train_loss)
@@ -183,5 +185,5 @@ def train(args):
  #save model checkpoint
     if not os.path.isdir(os.path.join(args.dir_name, 'checkpoints')):
         os.makedirs(os.path.join(args.dir_name, 'checkpoints'))
-    checkpoints.save_checkpoint(ckpt_dir=os.path.join(os.path.abspath(args.dir_name),'checkpoints'), target=state, step=0)
+    checkpoints.save_checkpoint(ckpt_dir=os.path.join(os.path.abspath(args.dir_name),'checkpoints'), target=state, step=0,overwrite=True)
     
