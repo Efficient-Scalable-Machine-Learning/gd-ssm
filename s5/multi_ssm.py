@@ -158,6 +158,7 @@ class multi_S5SSM(nn.Module):
             self.w_q = np.outer(np.array([1,0,0]), np.array([0,1,0]))
             self.Lambda_bar = np.ones((10, 10))
             self.C_tilde = -(self.gd_lr/self.P)*np.eye(10)
+            #self.D = -(self.gd_lr/self.P)*np.array([0,0,1])
             self.D = np.array([0,0,1])
         else:
             self.w_q = self.param('w_q', nn.initializers.normal(stddev=0.1), (3, 3)) # Local Self Attention parameter

@@ -55,8 +55,20 @@ def train(args):
                                     config.size_distract,
                                     config.input_range,
                                     config.weight_scale)
+    if args.analyse:
+        from s5.analysis import scan_lrs,analyse
+        gd_lr,min_loss = scan_lrs(args,data_rng, lin_diag=False, bs=10000)
+        print(f"Validation loss on the gradient-descent based construction:{min_loss} for the learning rate {gd_lr}")
+    if args.analyse and args.dataset in ["normal_token_vector"]:
+        print("Analysis for normal token vector is not implemented")
+        args.analyse = False
     # Training Loop over epochs
     ls_trainloss, ls_valloss = [],[]
+    loss_ssm_list =  [[]  for _ in range(args.epochs)]
+    losses_gd_list =  [[]  for _ in range(args.epochs)]    
+    cos_sim_list =  [[]  for _ in range(args.epochs)]
+    grad_norm_list =  [[]  for _ in range(args.epochs)]
+    p_norm_list =  [[]  for _ in range(args.epochs)]
     best_loss, best_acc, best_epoch = 100000000, -100000000.0, 0  # This best loss is val_loss
     count, best_val_loss = 0, 100000000  # This line is for early stopping purposes
     lr_count, opt_acc = 0, -100000000.0  # This line is for learning rate decay
@@ -111,8 +123,19 @@ def train(args):
                                     in_dim,
                                     args.batchnorm,
                                     args.dataset)
+        if args.analyse:
+            cos_sim, w_norm, p_norm = analyse(args,eval_data,state,model_cls,eval_rng, gd_lr)
+            cos_sim_list[epoch].append(cos_sim)
+            grad_norm_list[epoch].append(w_norm)
+            p_norm_list[epoch].append(p_norm)
+            losses_gd_list[epoch].append(min_loss)
+            loss_ssm_list[epoch].append(train_loss)
+
         if args.USE_WANDB:
-            wandb.log({"train_loss": train_loss, "val_loss": val_loss})
+            if args.analyse:
+                wandb.log({"train_loss": train_loss, "val_loss": val_loss,"Model_cos":cos_sim,"Model_diff":w_norm,"Preds_diff":p_norm})
+            else:
+                wandb.log({"train_loss": train_loss, "val_loss": val_loss})
         ls_trainloss.append(train_loss)
         ls_valloss.append(val_loss)
         if (epoch+1) % 100 ==0:
@@ -126,17 +149,27 @@ def train(args):
     checkpoints.save_checkpoint(ckpt_dir=os.path.join(os.path.abspath(args.dir_name),'checkpoints'), target=state, step=0,overwrite=True)
     
 
-### Analysis
-    gd_lr = 1 #TODO: Should be the ideal learning rate from a linear search
-    gd_model_cls,gd_state = model_init(args,init_rng,gd_params=True,gd_lr=gd_lr)
-    gd_val_loss = validate(gd_state,
-                            gd_model_cls,
-                            eval_data,
-                            seq_len,
-                            in_dim,
-                            args.batchnorm,
-                            args.dataset)
-    print(f"Validation loss on the gradient-descent based construction:{gd_val_loss}")
+# ### Analysis
+#     if args.analyse:
+#         from s5.analysis import display_learning
+#         cosine_low = 0.0
+#         display_learning(loss_ssm_list, test=[losses_gd_list[0]], y_lim_u=0.4, y_lim_l=0.2,
+#                             rw=1, title="train.pdf", allow_download=False,
+#                             single_seeds = True, label_title ="Loss",
+#                             title2='GD', title1='Trained TF', 
+#                             title3='GD',  loc_first='upper right',
+#                             num_iter_os=len(loss_ssm_list[0])*100)
+
+#         display_learning(cos_sim_list, grad_norm_list, p_norm_list, 
+#                             title1="Model cos",
+#                             title2="Model diff", y_lim_u=2,
+#                             title3="Preds diff", second_axis=True, color_add=0.2,
+#                             y_lim_u2=1.19, loc_sec='center right', single_seeds = False, 
+#                             y_lim_l2=cosine_low, color_axis=False, width= 5, y_label2 = 'Cosine sim',
+#                             rw=1, num_iter_os=len(cos_sim_list)*100, title="sim.pdf",
+#                             allow_download=False)
+        
+
 
 
     

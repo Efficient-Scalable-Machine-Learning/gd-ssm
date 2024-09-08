@@ -393,6 +393,23 @@ def validate(state, model, testloader, seq_len, in_dim, batchnorm,dataset, step_
     aveloss = np.mean(losses)    
     return aveloss
 
+def get_prediction(state, model, inputs, seq_len, in_dim, batchnorm,dataset, step_rescale=1.0):
+    """Validation function that loops over batches"""
+    model = model(training=False, step_rescale=step_rescale)
+    integration_timesteps = np.ones((len(inputs), seq_len))
+    if batchnorm:
+        logits = model.apply({"params": state.params, "batch_stats": state.batch_stats},
+                            inputs, integration_timesteps,
+                            )
+    else:
+        logits = model.apply({"params": state.params},
+                            inputs, integration_timesteps,
+                            )
+    logits = logits[0,-1] * -1
+        # _, logits = eval_step(inputs, labels, integration_timesteps, state, model, batchnorm,dataset)
+    # model = model(training=False, step_rescale=step_rescale)
+    return logits
+
 
 @partial(jax.jit, static_argnums=(5,6,7))
 def train_step(state,
@@ -422,10 +439,9 @@ def train_step(state,
                 mutable=["intermediates"],
             )
         if dataset in ['normal_token_scalar']:
-            logits = (logits[:,-1])
-            loss = compute_loss(logits, batch_labels[:,-1])
+            loss = compute_loss(logits[:,-1]*-1, batch_labels[:,-1])
         else:
-            loss = compute_loss(logits, batch_labels)
+            loss = compute_loss(logits*-1, batch_labels)
             loss = loss/(logits.shape[1])
 
         return loss, (mod_vars, logits)
@@ -457,9 +473,9 @@ def eval_step(batch_inputs,
                             batch_inputs, batch_integration_timesteps,
                             )
     if dataset in ['normal_token_scalar']:
-        losses = compute_loss(logits[:,-1], batch_labels[:,-1])
+        losses = compute_loss(logits[:,-1]*-1, batch_labels[:,-1])
     else:
-        losses = compute_loss(logits, batch_labels)
+        losses = compute_loss(logits*-1, batch_labels)
         losses = losses/(logits.shape[1])
     return losses, logits
 

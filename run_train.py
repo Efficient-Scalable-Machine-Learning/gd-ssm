@@ -16,12 +16,16 @@ if __name__ == "__main__":
 						help="wandb entity name, e.g. username")
 	parser.add_argument("--dir_name", type=str, default='./cache_dir',
 						help="name of directory where data is cached")
+ 
+	## incontext data
 	parser.add_argument("--dataset", type=str, choices=['normal_token_scalar','normal_token_vector'],
 						default='normal_token_scalar',
 						help="dataset name")
 	parser.add_argument("--dataset_size", type=int,
 						default=10,
 						help="incontext data size")
+	parser.add_argument("--analyse", type=str2bool, default=False,
+						help="Analysis of gradient descent parameters")
 
 	# Model Parameters
 	parser.add_argument("--n_layers", type=int, default=1,

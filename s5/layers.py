@@ -29,7 +29,6 @@ class S5layer(nn.Module):
     bn_momentum: float = 0.90
     step_rescale: float = 1.0
     use_skip: bool = False
-    local_attn:bool= False
 
     def setup(self):
         """Initializes the ssm, batch/layer norm and dropout
@@ -89,6 +88,8 @@ class S5layer(nn.Module):
                 "Activation: {} not implemented".format(self.activation))
         if self.use_skip:
             x = skip + x
+            import pdb
+            pdb.set_trace()
         # if not self.prenorm:
         #     x = self.norm(x)
         return x
