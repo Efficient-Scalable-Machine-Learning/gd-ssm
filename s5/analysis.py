@@ -1,7 +1,8 @@
 import PIL.Image, PIL.ImageDraw, PIL.ImageFont
 import jax
-from jax import vmap
+from jax import vmap,jit
 from jax import numpy as np
+from jax import jacfwd, jacrev
 from s5.model_init import model_init
 from s5.train_helpers import validate,get_prediction
 from transformer.src.config import config
@@ -281,19 +282,38 @@ def analyse(args,data, state,model_cls, rng, gd_lr):
         pass
     pred = lambda z: get_prediction(state,model_cls,z[None, ...],seq_len,10,args.batchnorm,args.dataset)
     predictions = vmap(pred)(data[0])
-    grads = vmap(jax.grad(pred))(data[0])[:, -1, :-1]  #+ w_init
+    if args.dataset in ['normal_token_vector']:
+      grads = vmap(jacrev(pred))(data[0])[:, :,-1, :]
+    elif args.dataset in ['normal_token_scalar']:
+      grads = vmap(jax.grad(pred))(data[0])[:, -1, :]
+    else:
+      grads = vmap(jax.grad(pred))(data[0])[:, -1, :-1]
+    #grads = vmap(jax.grad(pred))(data[0])[:, -1, :-1]  #+ w_init
     grads_norm = np.linalg.norm(grads, axis=1)
     gd_model_cls,gd_state = model_init(args,rng,gd_params=True,gd_lr=gd_lr)
     
   # GD
     pred_c = lambda z: get_prediction(gd_state,gd_model_cls,z[None, ...],seq_len,10,args.batchnorm,args.dataset)
-    grads_c = vmap(jax.grad(pred_c))(data[0])[:, -1, :-1] 
-    predictions_c = vmap(pred_c)(data[0]) 
-    grads_c_norm = np.linalg.norm(grads_c, axis=1)
-
-    # Metrics
-    dot_products = np.einsum('ij,ij->i', grads/(grads_norm[..., None] + 1e-8),
+    if args.dataset in ['normal_token_vector']:
+      grads_c = vmap(jacrev(pred_c))(data[0])[:, :,-1, :]
+      grads_c_norm = np.linalg.norm(grads_c, axis=1)
+      dot_products = np.einsum('ijk,ijk->ij', grads/(grads_norm[..., None] + 1e-8),
                                 grads_c/(grads_c_norm[..., None]+ 1e-8))
+      dot_products = np.mean(dot_products,axis=1)
+    elif args.dataset in ['normal_token_scalar']:
+      grads_c = vmap(jax.grad(pred_c))(data[0])[:, -1, :]
+      grads_c_norm = np.linalg.norm(grads_c, axis=1)
+      dot_products = np.einsum('ij,ij->i', grads/(grads_norm[..., None] + 1e-8),
+                                grads_c/(grads_c_norm[..., None]+ 1e-8))
+      dot_products = np.mean(dot_products,axis=1)
+    else:
+      grads_c = vmap(jax.grad(pred_c))(data[0])[:, -1, :-1]
+      grads_c_norm = np.linalg.norm(grads_c, axis=1)
+      dot_products = np.einsum('ij,ij->i', grads/(grads_norm[..., None] + 1e-8),
+                                grads_c/(grads_c_norm[..., None]+ 1e-8))
+    #grads_c = vmap(jax.grad(pred_c))(data[0])[:, -1, :-1] 
+    predictions_c = vmap(pred_c)(data[0])
+    # Metrics
     dot = np.mean(dot_products)
     norm = np.mean(np.linalg.norm(grads-grads_c, axis=1))
     pred_norm = np.mean(np.linalg.norm(predictions[..., None]-

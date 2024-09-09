@@ -405,7 +405,10 @@ def get_prediction(state, model, inputs, seq_len, in_dim, batchnorm,dataset, ste
         logits = model.apply({"params": state.params},
                             inputs, integration_timesteps,
                             )
-    logits = logits[0,-1] * -1
+    if dataset in ["normal_token_scalar"]:
+        logits = logits[0,-1] * -1
+    else:
+        logits = logits[0,:] * -1
         # _, logits = eval_step(inputs, labels, integration_timesteps, state, model, batchnorm,dataset)
     # model = model(training=False, step_rescale=step_rescale)
     return logits

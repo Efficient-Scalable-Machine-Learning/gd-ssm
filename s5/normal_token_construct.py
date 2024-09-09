@@ -59,9 +59,9 @@ def train(args):
         from s5.analysis import scan_lrs,analyse
         gd_lr,min_loss = scan_lrs(args,data_rng, lin_diag=False, bs=10000)
         print(f"Validation loss on the gradient-descent based construction:{min_loss} for the learning rate {gd_lr}")
-    if args.analyse and args.dataset in ["normal_token_vector"]:
-        print("Analysis for normal token vector is not implemented")
-        args.analyse = False
+    # if args.analyse and args.dataset in ["normal_token_vector"]:
+    #     print("Analysis for normal token vector is not implemented")
+    #     args.analyse = False
     # Training Loop over epochs
     ls_trainloss, ls_valloss = [],[]
     loss_ssm_list =  [[]  for _ in range(args.epochs)]
@@ -141,7 +141,7 @@ def train(args):
         if (epoch+1) % 100 ==0:
             print(f"\n=>> Epoch {epoch + 1} Metrics ===")
             print(
-                f"\tTrain Loss: {train_loss:.5f} -- Val Loss: {val_loss:.5f}"
+                f"\tTrain Loss: {train_loss:.5f} -- Val Loss: {val_loss:.5f} -- Cos similarity: {cos_sim:.5f}"
                 )
  #save model checkpoint
     if not os.path.isdir(os.path.join(args.dir_name, 'checkpoints')):
@@ -150,24 +150,24 @@ def train(args):
     
 
 # ### Analysis
-#     if args.analyse:
-#         from s5.analysis import display_learning
-#         cosine_low = 0.0
-#         display_learning(loss_ssm_list, test=[losses_gd_list[0]], y_lim_u=0.4, y_lim_l=0.2,
-#                             rw=1, title="train.pdf", allow_download=False,
-#                             single_seeds = True, label_title ="Loss",
-#                             title2='GD', title1='Trained TF', 
-#                             title3='GD',  loc_first='upper right',
-#                             num_iter_os=len(loss_ssm_list[0])*100)
+    # if args.analyse:
+    #     from s5.analysis import display_learning
+    #     cosine_low = 0.0
+    #     display_learning(loss_ssm_list, test=[losses_gd_list[0]], y_lim_u=0.4, y_lim_l=0.2,
+    #                         rw=1, title="train.pdf", allow_download=False,
+    #                         single_seeds = True, label_title ="Loss",
+    #                         title2='GD', title1='Trained TF', 
+    #                         title3='GD',  loc_first='upper right',
+    #                         num_iter_os=len(loss_ssm_list[0])*100)
 
-#         display_learning(cos_sim_list, grad_norm_list, p_norm_list, 
-#                             title1="Model cos",
-#                             title2="Model diff", y_lim_u=2,
-#                             title3="Preds diff", second_axis=True, color_add=0.2,
-#                             y_lim_u2=1.19, loc_sec='center right', single_seeds = False, 
-#                             y_lim_l2=cosine_low, color_axis=False, width= 5, y_label2 = 'Cosine sim',
-#                             rw=1, num_iter_os=len(cos_sim_list)*100, title="sim.pdf",
-#                             allow_download=False)
+    #     display_learning(cos_sim_list, grad_norm_list, p_norm_list, 
+    #                         title1="Model cos",
+    #                         title2="Model diff", y_lim_u=2,
+    #                         title3="Preds diff", second_axis=True, color_add=0.2,
+    #                         y_lim_u2=1.19, loc_sec='center right', single_seeds = False, 
+    #                         y_lim_l2=cosine_low, color_axis=False, width= 5, y_label2 = 'Cosine sim',
+    #                         rw=1, num_iter_os=len(cos_sim_list)*100, title="sim.pdf",
+    #                         allow_download=False)
         
 
 
