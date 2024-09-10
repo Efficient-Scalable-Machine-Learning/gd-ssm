@@ -1,5 +1,6 @@
 import PIL.Image, PIL.ImageDraw, PIL.ImageFont
 import jax
+from functools import partial
 from jax import vmap,jit
 from jax import numpy as np
 from jax import jacfwd, jacrev
@@ -271,41 +272,41 @@ def display_learning(train, test=None, gt=None, inter=None, title="train",
     img = grab_plot()
     display(Image(data=imencode(img, fmt='jpeg')), display_id=title)
     
-def analyse(args,data, state,model_cls, rng, gd_lr):
-    
+#@partial(jit, static_argnums=(0,2))
+def analyse(dataset,dataset_size,batchnorm,data,state,model_cls, gd_model_cls,gd_state):
     # Trained Transformer
-    if args.dataset in ["normal_token_scalar"]:
-        seq_len = args.dataset_size
-    elif args.dataset in ["normal_token_vector"]:
-        seq_len = (args.dataset_size *2) + 1
+    if dataset in ["normal_token_scalar"]:
+        seq_len = dataset_size
+    elif dataset in ["normal_token_vector"]:
+        seq_len = (dataset_size *2) + 1
     else:
         pass
-    pred = lambda z: get_prediction(state,model_cls,z[None, ...],seq_len,10,args.batchnorm,args.dataset)
+    pred = lambda z: get_prediction(state,model_cls,z[None, ...],seq_len,10,batchnorm,dataset)
     predictions = vmap(pred)(data[0])
-    if args.dataset in ['normal_token_vector']:
+    if dataset in ['normal_token_vector']:
       grads = vmap(jacrev(pred))(data[0])[:, :,-1, :]
-    elif args.dataset in ['normal_token_scalar']:
+    elif dataset in ['normal_token_scalar']:
       grads = vmap(jax.grad(pred))(data[0])[:, -1, :]
     else:
       grads = vmap(jax.grad(pred))(data[0])[:, -1, :-1]
     #grads = vmap(jax.grad(pred))(data[0])[:, -1, :-1]  #+ w_init
     grads_norm = np.linalg.norm(grads, axis=1)
-    gd_model_cls,gd_state = model_init(args,rng,gd_params=True,gd_lr=gd_lr)
+#    gd_model_cls,gd_state = model_init(args,rng,gd_params=True,gd_lr=gd_lr)
     
   # GD
-    pred_c = lambda z: get_prediction(gd_state,gd_model_cls,z[None, ...],seq_len,10,args.batchnorm,args.dataset)
-    if args.dataset in ['normal_token_vector']:
+    pred_c = lambda z: get_prediction(gd_state,gd_model_cls,z[None, ...],seq_len,10,batchnorm,dataset)
+    if dataset in ['normal_token_vector']:
       grads_c = vmap(jacrev(pred_c))(data[0])[:, :,-1, :]
-      grads_c_norm = np.linalg.norm(grads_c, axis=1)
+      grads_c_norm = np.linalg.norm(grads_c, axis=2)
       dot_products = np.einsum('ijk,ijk->ij', grads/(grads_norm[..., None] + 1e-8),
                                 grads_c/(grads_c_norm[..., None]+ 1e-8))
       dot_products = np.mean(dot_products,axis=1)
-    elif args.dataset in ['normal_token_scalar']:
+    elif dataset in ['normal_token_scalar']:
       grads_c = vmap(jax.grad(pred_c))(data[0])[:, -1, :]
       grads_c_norm = np.linalg.norm(grads_c, axis=1)
       dot_products = np.einsum('ij,ij->i', grads/(grads_norm[..., None] + 1e-8),
                                 grads_c/(grads_c_norm[..., None]+ 1e-8))
-      dot_products = np.mean(dot_products,axis=1)
+      #dot_products = np.mean(dot_products,axis=1)
     else:
       grads_c = vmap(jax.grad(pred_c))(data[0])[:, -1, :-1]
       grads_c_norm = np.linalg.norm(grads_c, axis=1)

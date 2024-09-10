@@ -57,7 +57,9 @@ def train(args):
                                     config.weight_scale)
     if args.analyse:
         from s5.analysis import scan_lrs,analyse
-        gd_lr,min_loss = scan_lrs(args,data_rng, lin_diag=False, bs=10000)
+        #gd_lr,min_loss = scan_lrs(args,data_rng, lin_diag=False, bs=10000)
+        gd_lr,min_loss = 6.0, 0.2
+        gd_model_cls,gd_state = model_init(args,init_rng,gd_params=True,gd_lr=gd_lr)
         print(f"Validation loss on the gradient-descent based construction:{min_loss} for the learning rate {gd_lr}")
     # if args.analyse and args.dataset in ["normal_token_vector"]:
     #     print("Analysis for normal token vector is not implemented")
@@ -124,7 +126,7 @@ def train(args):
                                     args.batchnorm,
                                     args.dataset)
         if args.analyse:
-            cos_sim, w_norm, p_norm = analyse(args,eval_data,state,model_cls,eval_rng, gd_lr)
+            cos_sim, w_norm, p_norm = analyse(args.dataset,args.dataset_size,args.batchnorm,eval_data,state,model_cls, gd_model_cls,gd_state)
             cos_sim_list[epoch].append(cos_sim)
             grad_norm_list[epoch].append(w_norm)
             p_norm_list[epoch].append(p_norm)
