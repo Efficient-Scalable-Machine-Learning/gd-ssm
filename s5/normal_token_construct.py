@@ -136,7 +136,7 @@ def train(args):
 
         if args.USE_WANDB:
             if args.analyse:
-                wandb.log({"train_loss": train_loss, "val_loss": val_loss,"Model_cos":cos_sim,"Model_diff":w_norm,"Preds_diff":p_norm})
+                wandb.log({"train_loss": train_loss, "val_loss": val_loss,"Model_cos":cos_sim,"Model_diff":w_norm,"Preds_diff":p_norm,"GD_loss":min_loss})
             else:
                 wandb.log({"train_loss": train_loss, "val_loss": val_loss})
         ls_trainloss.append(train_loss)
