@@ -364,6 +364,7 @@ def train_epoch(state, rng, model, trainloader, seq_len, in_dim, batchnorm,datas
         rng, drop_rng = jax.random.split(rng)
         state, loss = train_step(
             state,
+#            params,  #TODO - Testing flexible SSM models
             drop_rng,
             inputs,
             labels,

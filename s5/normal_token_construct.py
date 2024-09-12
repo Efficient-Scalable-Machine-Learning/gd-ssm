@@ -7,16 +7,17 @@ from s5.seq_model import BatchS5Model
 from s5.model_init import model_init
 from ml_collections import config_dict
 from tqdm import tqdm
-from jax import random
+from jax import random,jacrev,vmap
+import jax.numpy as jnp
 from flax import linen as nn
 from flax.training import checkpoints
 from s5.train_helpers import create_train_state,reduce_lr_on_plateau,\
-    linear_warmup, cosine_annealing, constant_lr, train_epoch, validate
-from s5.analysis import scan_lrs,analyse
+    linear_warmup, cosine_annealing, constant_lr, train_epoch,\
+        validate,get_prediction
+from s5.analysis import analyse,scan_lrs
 from transformer.src.transformer import Transformer
 from transformer.src.data import create_reg_data_classic_token, create_vec_reg_data_classic_token
 from transformer.src.config import config 
-from transformer.src.train import *
 
 def train(args):
     """
@@ -29,9 +30,7 @@ def train(args):
     key = random.PRNGKey(args.jax_seed)
     init_rng, train_rng , data_rng,eval_rng= random.split(key, num=4)
     model_cls,state = model_init(args,init_rng,gd_params=False,gd_lr=None)
-    retrieval = False
-    padded = False
-    in_dim = 10 # Before embedding
+    in_dim = args.dataset_size # In-context regression data feature size
     ssm_lr = args.ssm_lr_base
     lr = args.lr_factor * ssm_lr
     ### Data
@@ -49,14 +48,14 @@ def train(args):
         raise NotImplementedError("dataset method {} not implemented".format(args.dataset))
         
     #Create eval data
-    eval_data = data_creator(jax.random.split(eval_rng, num=10000),
+    eval_data = data_creator(random.split(eval_rng, num=10000),
                                     10, 
                                     args.dataset_size,
                                     config.size_distract,
                                     config.input_range,
                                     config.weight_scale)
     if args.analyse:
-        gd_lr,min_loss = scan_lrs(args,data_rng, lin_diag=False, bs=10000)
+        gd_lr,min_loss = scan_lrs(args,data_rng,False,10000)
         gd_model_cls,gd_state = model_init(args,init_rng,gd_params=True,gd_lr=gd_lr)
         print(f"Validation loss on the gradient-descent based construction:{min_loss} for the learning rate {gd_lr}")
     # if args.analyse and args.dataset in ["normal_token_vector"]:
@@ -73,8 +72,8 @@ def train(args):
     steps_per_epoch = int(train_size/args.bsz)
     for epoch in range(args.epochs):
 
-        rng, data_rng = jax.random.split(data_rng, 2)
-        trainloader = data_creator(jax.random.split(rng, num=args.bsz), 
+        rng, data_rng = random.split(data_rng, 2)
+        trainloader = data_creator(random.split(rng, num=args.bsz), 
                                     10,
                                     args.dataset_size,
                                     config.size_distract,
@@ -162,14 +161,15 @@ def train(args):
         grad_norm_list = [np.array(grad_norm_list)]
         p_norm_list = [np.array(p_norm_list)]
         losses_gd_list = [np.array(losses_gd_list)]
-        display_learning(loss_ssm_list, test=[losses_gd_list[0]], y_lim_u=0.4, y_lim_l=0.2,
+        training_steps = np.arange(args.epochs)
+        display_learning(training_steps,loss_ssm_list, test=[losses_gd_list[0]], y_lim_u=0.4, y_lim_l=0.2,
                             rw=1, title="train.pdf", allow_download=True,
                             single_seeds = True, label_title ="Loss",
                             title2='GD', title1='Trained SSM', 
                             title3='GD',  loc_first='upper right',
                             num_iter_os=len(loss_ssm_list[0]))
 
-        display_learning(cos_sim_list, grad_norm_list, p_norm_list, 
+        display_learning(training_steps,cos_sim_list, grad_norm_list, p_norm_list, 
                             title1="Model cos",
                             title2="Model diff", y_lim_u=2,
                             title3="Preds diff", second_axis=True, color_add=0.2,

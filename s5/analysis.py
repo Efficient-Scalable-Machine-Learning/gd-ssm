@@ -15,7 +15,7 @@ import matplotlib.colors as mcolors
 colors = pl.colormaps['Dark2'] 
 
 
-def scan_lrs(args,rng, lin_diag=False, bs=10000):
+def scan_lrs(args,rng,lin_diag,bs):
     eval_rng,_ =  jax.random.split(rng, num=2)
     if args.dataset in ["normal_token_scalar"]:
         seq_len = args.dataset_size
@@ -88,7 +88,7 @@ def grab_plot(close=True):
     pl.close()
   return img
 
-def display_learning(train, test=None, gt=None, inter=None, title="train", 
+def display_learning(training_steps,train, test=None, gt=None, inter=None, title="train", 
                      title1="Trained TF", title2="Test", 
                      title3='Gradient descent', title4='Interpolated',
                      y_label1 = 'L2 Norm', y_label2 = 'Cosine sim',
@@ -114,6 +114,7 @@ def display_learning(train, test=None, gt=None, inter=None, title="train",
   num_seeds_train = train.shape[0]
   train_std = np.std(train, axis=0)
   train = np.mean(train, axis=0)
+  training_step = training_steps
   
   if test is not None:
     test_list = test
@@ -137,62 +138,64 @@ def display_learning(train, test=None, gt=None, inter=None, title="train",
 
   
   if test is not None and not second_axis:
-    x_range = np.arange(0, num_iter_os, int(num_iter_os/len(test)))
+    #training_step = np.arange(0, num_iter_os, int(num_iter_os/len(test)))
+    training_step = training_steps #FIXME : change training_steps later
     if len(test_list) > 1:
       if single_seeds:
         for s in test_list:
-          ax1.plot(x_range, s, color=colors(0.1+color_add), alpha=0.2, label=title2,linewidth='2')
+          ax1.plot(training_step, s, color=colors(0.1+color_add), alpha=0.2, label=title2,linewidth='2')
       else:
-        ax1.fill_between(x_range, test-test_std, test+test_std ,alpha=0.2, facecolor=colors(0.1+color_add))
-    ax1.plot(x_range, test, color=colors(0.1+color_add), label=title2,linewidth='3')
+        ax1.fill_between(training_step, test-test_std, test+test_std ,alpha=0.2, facecolor=colors(0.1+color_add))
+    ax1.plot(training_step, test, color=colors(0.1+color_add), label=title2,linewidth='3')
     #test_avg = moving_average(test, rw)
-    #ax1.plot(x_range[:len(test_avg)], test_avg, color=colors(0.1+color_add), label=title2)
+    #ax1.plot(training_step[:len(test_avg)], test_avg, color=colors(0.1+color_add), label=title2)
       
   if gt is not None:
     if not second_axis:
-      x_range = np.arange(0, num_iter_os, int(num_iter_os/len(gt)))
-      #ax1.plot(x_range[:len(gt[:-rw])], gt[:-rw], color=colors(0.2+color_add), alpha=0.3)
+      #training_step = np.arange(0, num_iter_os, int(num_iter_os/len(gt)))
+      #ax1.plot(training_step[:len(gt[:-rw])], gt[:-rw], color=colors(0.2+color_add), alpha=0.3)
       #gt_avg = moving_average(gt, rw)
-      ax1.plot(x_range, gt, color=colors(0.2+color_add), label=title3,linewidth='3')
+      ax1.plot(training_step, gt, color=colors(0.2+color_add), label=title3,linewidth='3')
       if len(gt_list) > 1:
         if single_seeds:
           for s in gt_list:
-            ax1.plot(x_range, s, color=colors(0.2+color_add), alpha=0.2, linewidth='2', zorder=0)
+            ax1.plot(training_step, s, color=colors(0.2+color_add), alpha=0.2, linewidth='2', zorder=0)
         else:
-          ax1.fill_between(x_range, gt-gt_std, gt+gt_std,alpha=0.2, facecolor=colors(0.2+color_add))
+          ax1.fill_between(training_step, gt-gt_std, gt+gt_std,alpha=0.2, facecolor=colors(0.2+color_add))
     else:
-      x_range = np.arange(0, num_iter_os, int(num_iter_os/len(gt)))
-      ax1.plot(x_range, gt, color=colors(0.6+color_add), label=title3,linewidth='3')
+      #training_step = np.arange(0, num_iter_os, int(num_iter_os/len(gt)))
+      ax1.plot(training_step, gt, color=colors(0.6+color_add), label=title3,linewidth='3')
       if len(gt_list) > 1:
         if single_seeds:
           for s in gt_list:
-            ax1.plot(x_range, s, color=colors(0.6+color_add), alpha=0.3, linewidth='2', zorder=0)
+            ax1.plot(training_step, s, color=colors(0.6+color_add), alpha=0.3, linewidth='2', zorder=0)
         else:
-          ax1.fill_between(x_range, gt-gt_std, gt+gt_std ,alpha=0.2, facecolor=colors(0.6+color_add))
+          ax1.fill_between(training_step, gt-gt_std, gt+gt_std ,alpha=0.2, facecolor=colors(0.6+color_add))
 
   if test is not None and second_axis:
-    x_range = np.arange(0, num_iter_os, int(num_iter_os/len(test)))
-    ax1.plot(x_range, test, color=colors(0.5+color_add), label=title2,linewidth='3')
+    #training_step = np.arange(0, num_iter_os, int(num_iter_os/len(test)))
+    #training_step = training_steps
+    ax1.plot(training_step, test, color=colors(0.5+color_add), label=title2,linewidth='3')
     #test_avg = moving_average(test, rw)
-    #ax1.plot(x_range[:len(test_avg)],test_avg, color=colors(0.5+color_add))
+    #ax1.plot(training_step[:len(test_avg)],test_avg, color=colors(0.5+color_add))
     if len(test_list) > 1:
       if single_seeds:
         for s in test_list:
-          ax1.plot(x_range, s, color=colors(0.5+color_add), linewidth='2', alpha=0.3, zorder=0)
+          ax1.plot(training_step, s, color=colors(0.5+color_add), linewidth='2', alpha=0.3, zorder=0)
       else:
-        ax1.fill_between(x_range, test-test_std, test+test_std ,alpha=0.2, facecolor=colors(0.5+color_add))
+        ax1.fill_between(training_step, test-test_std, test+test_std ,alpha=0.2, facecolor=colors(0.5+color_add))
 
   if inter is not None and not second_axis:
-    x_range = np.arange(0, num_iter_os, int(num_iter_os/len(inter)))
-    ax1.plot(x_range, inter, color=colors(0.4+color_add), label=title4, linewidth='3', zorder=10)
+    #training_step = np.arange(0, num_iter_os, int(num_iter_os/len(inter)))
+    ax1.plot(training_step, inter, color=colors(0.4+color_add), label=title4, linewidth='3', zorder=10)
     if len(inter_list) > 1:
       if single_seeds:
         for s in inter_list:
-          ax1.plot(x_range, s, color=colors(0.4+color_add), alpha=0.3, linewidth='2', zorder=0)
+          ax1.plot(training_step, s, color=colors(0.4+color_add), alpha=0.3, linewidth='2', zorder=0)
       else:
-        ax1.fill_between(x_range, inter-inter_std, inter+inter_std ,alpha=0.2, facecolor=colors(0.4+color_add), zorder=1)
+        ax1.fill_between(training_step, inter-inter_std, inter+inter_std ,alpha=0.2, facecolor=colors(0.4+color_add), zorder=1)
     #inter_avg = moving_average(inter, rw)
-    #ax1.plot(x_range[:len(inter_avg)], inter_avg, color=colors(0.7+color_add), label=title4)
+    #ax1.plot(training_step[:len(inter_avg)], inter_avg, color=colors(0.7+color_add), label=title4)
 
 
   if second_axis:
@@ -203,15 +206,15 @@ def display_learning(train, test=None, gt=None, inter=None, title="train",
     ax1.set_frame_on(False)
     #train_avg = moving_average(train, rw)
     #ax2.plot(train[:-rw], color=colors(0.1+color_add), alpha=0.3)
-    ax2.plot(x_range, train, color=colors(0.4+color_add), label=title1, linewidth='3')
-    ax2.plot(x_range, np.ones_like(train), "--", color="gray", linewidth='0.7')
+    ax2.plot(training_step, train, color=colors(0.4+color_add), label=title1, linewidth='3')
+    ax2.plot(training_step, np.ones_like(train), "--", color="gray", linewidth='0.7')
     if len(train_list) > 1:
       if single_seeds:
         for s in train_list:
-          print(x_range, s)
-          ax1.plot(x_range, s, line, color=colors(0.4+color_add), alpha=0.3, linewidth='2', zorder=0)
+          print(training_step, s)
+          ax1.plot(training_step, s, line, color=colors(0.4+color_add), alpha=0.3, linewidth='2', zorder=0)
       else:
-        ax2.fill_between(x_range, train-train_std, train+train_std ,alpha=0.2, facecolor=colors(0.4+color_add))
+        ax2.fill_between(training_step, train-train_std, train+train_std ,alpha=0.2, facecolor=colors(0.4+color_add))
 
     if color_axis:
       ax2.yaxis.label.set_color(colors(0.4+color_add))
@@ -222,17 +225,17 @@ def display_learning(train, test=None, gt=None, inter=None, title="train",
   else:
     #train_avg = moving_average(train, rw)
     if line != "-":
-      ax1.scatter(x_range, train, s=[100 for _ in x_range], 
+      ax1.scatter(training_step, train, s=[100 for _ in training_step], 
                   marker="+", color=colors(0.3+color_add), alpha=1, label=title1, zorder=3, linewidths=3)
     else:
-      ax1.plot(x_range, train, line, color=colors(0.3+color_add), label=title1, linewidth='3', zorder=11)
-    #ax1.plot(x_range[:len(train_avg)], train_avg, line, color=colors(0.3+color_add), label=title1)
+      ax1.plot(training_step, train, line, color=colors(0.3+color_add), label=title1, linewidth='3', zorder=11)
+    #ax1.plot(training_step[:len(train_avg)], train_avg, line, color=colors(0.3+color_add), label=title1)
     if len(train_list) > 1:
       if single_seeds:
           for s in train_list:
-            ax1.plot(x_range, s, line, color=colors(0.3+color_add), alpha=0.3, linewidth='2', zorder=0)
+            ax1.plot(training_step, s, line, color=colors(0.3+color_add), alpha=0.3, linewidth='2', zorder=0)
       else: 
-        ax1.fill_between(x_range, train-train_std, train+train_std,
+        ax1.fill_between(training_step, train-train_std, train+train_std,
                        alpha=0.5, facecolor=colors(0.3+color_add))
 
     ax1.legend(loc='best', framealpha=1, facecolor='white')
@@ -320,3 +323,67 @@ def analyse(dataset,dataset_size,batchnorm,data,state,model_cls, gd_model_cls,gd
     pred_norm = jnp.mean(jnp.linalg.norm(predictions[..., None]-
                                         predictions_c[..., None], axis=1))
     return dot, norm, pred_norm
+
+# def compute_ood_loss(ir, ws, rng, params, gd, bs_size=10000):
+#   """Compute loss on large dataset with potential scaling."""
+#   data = data_creator(jax.random.split(rng, num=bs_size),
+#                       config.input_size,
+#                       config.dataset_size,
+#                       config.size_distract,
+#                       ir,
+#                       ws)
+#   loss, _, _ = predict_test.apply(params, rng, data, gd)
+#   return loss  
+# @partial(jax.jit, static_argnums=(3))
+# def ood(state, rng, params_c, bs_size):
+#   """Analyse alignement between GD and trained Transformer on OOD settings."""
+#   stretch = np.arange(0.5, 5+0.1, 0.1)
+#   stretch_i = np.arange(0.5, 2+0.03, 0.03)
+#   eval_ir = lambda ir: compute_ood_loss(ir, config.weight_scale, rng,
+#                                         state.params, False, bs_size)
+#   eval_ws = lambda ws: compute_ood_loss(config.input_range, ws, rng, 
+#                                         state.params, False, bs_size)
+#   eval_ir_c = lambda ir: compute_ood_loss(ir, config.weight_scale, rng,
+#                                           params_c, True, bs_size)
+#   eval_ws_c = lambda ws: compute_ood_loss(config.input_range, ws, rng,
+#                                           params_c, True, bs_size)
+
+#   return (vmap(eval_ir)(stretch_i), vmap(eval_ws)(stretch),
+#           vmap(eval_ir_c)(stretch_i), vmap(eval_ws_c)(stretch), stretch)
+   
+# def scan_lrs(args,rng,lin_diag,bs):
+#     eval_rng,_ =  jax.random.split(rng, num=2)
+#     if args.dataset in ["normal_token_scalar"]:
+#         seq_len = args.dataset_size
+#         data_creator = vmap(create_reg_data_classic_token,
+#                             in_axes=(0, None, None, None, None, None),
+#                             out_axes=0)
+#     elif args.dataset in ["normal_token_vector"]:
+#         seq_len = (args.dataset_size *2) + 1
+#         data_creator = vmap(create_vec_reg_data_classic_token,
+#                             in_axes=(0, None, None, None, None, None),
+#                             out_axes=0)
+#     else:
+#         pass
+#     data = data_creator(jax.random.split(eval_rng, num=bs),
+#                       10,
+#                       args.dataset_size,
+#                       config.size_distract,
+#                       config.input_range, #FIXME : add to arg
+#                       config.weight_scale)
+#     lr_scan_range = jnp.arange(0.001, 25, 0.1)
+#     losses_lr = []
+#     for lr in lr_scan_range:
+#         gd_model_cls,gd_state = model_init(args,rng,gd_params=True,gd_lr=lr)
+#         val_loss = validate(gd_state,
+#                             gd_model_cls,
+#                             data,
+#                             seq_len,
+#                             10,
+#                             args.batchnorm,
+#                             args.dataset)
+#         losses_lr.append(val_loss)
+#     losses_lr = jnp.array(losses_lr)
+#     lr_min_i = jnp.argmin(losses_lr)
+#     min_loss = jnp.min(losses_lr)
+#     return lr_scan_range[lr_min_i], min_loss
