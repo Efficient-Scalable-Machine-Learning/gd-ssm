@@ -88,8 +88,6 @@ class S5layer(nn.Module):
                 "Activation: {} not implemented".format(self.activation))
         if self.use_skip:
             x = skip + x
-            import pdb
-            pdb.set_trace()
         # if not self.prenorm:
         #     x = self.norm(x)
         return x
