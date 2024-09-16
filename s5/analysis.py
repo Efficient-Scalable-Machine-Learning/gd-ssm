@@ -18,7 +18,7 @@ colors = pl.colormaps['Dark2']
 def scan_lrs(args,rng,lin_diag,bs):
     eval_rng,_ =  jax.random.split(rng, num=2)
     if args.dataset in ["normal_token_scalar"]:
-        seq_len = args.dataset_size
+        seq_len = (args.dataset_size *2) + 1
         data_creator = vmap(create_reg_data_classic_token,
                             in_axes=(0, None, None, None, None, None),
                             out_axes=0)
@@ -30,7 +30,7 @@ def scan_lrs(args,rng,lin_diag,bs):
     else:
         pass
     data = data_creator(jax.random.split(eval_rng, num=bs),
-                      10,
+                      args.input_size,
                       args.dataset_size,
                       config.size_distract,
                       config.input_range, #FIXME : add to arg
@@ -279,7 +279,7 @@ def display_learning(training_steps,train, test=None, gt=None, inter=None, title
 def analyse(dataset,dataset_size,batchnorm,data,state,model_cls, gd_model_cls,gd_state):
     # Trained Transformer
     if dataset in ["normal_token_scalar"]:
-        seq_len = dataset_size
+        seq_len = (dataset_size *2) + 1
     elif dataset in ["normal_token_vector"]:
         seq_len = (dataset_size *2) + 1
     else:
@@ -288,12 +288,15 @@ def analyse(dataset,dataset_size,batchnorm,data,state,model_cls, gd_model_cls,gd
     predictions = vmap(pred)(data[0])
     if dataset in ['normal_token_vector']:
       grads = vmap(jacrev(pred))(data[0])[:, :,-1, :]
+      grads_norm = jnp.linalg.norm(grads, axis=2)
     elif dataset in ['normal_token_scalar']:
       grads = vmap(jax.grad(pred))(data[0])[:, -1, :]
+      grads_norm = jnp.linalg.norm(grads, axis=1)
     else:
       grads = vmap(jax.grad(pred))(data[0])[:, -1, :-1]
+      grads_norm = jnp.linalg.norm(grads, axis=1)
     #grads = vmap(jax.grad(pred))(data[0])[:, -1, :-1]  #+ w_init
-    grads_norm = jnp.linalg.norm(grads, axis=1)
+    
 #    gd_model_cls,gd_state = model_init(args,rng,gd_params=True,gd_lr=gd_lr)
     
   # GD
@@ -323,67 +326,3 @@ def analyse(dataset,dataset_size,batchnorm,data,state,model_cls, gd_model_cls,gd
     pred_norm = jnp.mean(jnp.linalg.norm(predictions[..., None]-
                                         predictions_c[..., None], axis=1))
     return dot, norm, pred_norm
-
-# def compute_ood_loss(ir, ws, rng, params, gd, bs_size=10000):
-#   """Compute loss on large dataset with potential scaling."""
-#   data = data_creator(jax.random.split(rng, num=bs_size),
-#                       config.input_size,
-#                       config.dataset_size,
-#                       config.size_distract,
-#                       ir,
-#                       ws)
-#   loss, _, _ = predict_test.apply(params, rng, data, gd)
-#   return loss  
-# @partial(jax.jit, static_argnums=(3))
-# def ood(state, rng, params_c, bs_size):
-#   """Analyse alignement between GD and trained Transformer on OOD settings."""
-#   stretch = np.arange(0.5, 5+0.1, 0.1)
-#   stretch_i = np.arange(0.5, 2+0.03, 0.03)
-#   eval_ir = lambda ir: compute_ood_loss(ir, config.weight_scale, rng,
-#                                         state.params, False, bs_size)
-#   eval_ws = lambda ws: compute_ood_loss(config.input_range, ws, rng, 
-#                                         state.params, False, bs_size)
-#   eval_ir_c = lambda ir: compute_ood_loss(ir, config.weight_scale, rng,
-#                                           params_c, True, bs_size)
-#   eval_ws_c = lambda ws: compute_ood_loss(config.input_range, ws, rng,
-#                                           params_c, True, bs_size)
-
-#   return (vmap(eval_ir)(stretch_i), vmap(eval_ws)(stretch),
-#           vmap(eval_ir_c)(stretch_i), vmap(eval_ws_c)(stretch), stretch)
-   
-# def scan_lrs(args,rng,lin_diag,bs):
-#     eval_rng,_ =  jax.random.split(rng, num=2)
-#     if args.dataset in ["normal_token_scalar"]:
-#         seq_len = args.dataset_size
-#         data_creator = vmap(create_reg_data_classic_token,
-#                             in_axes=(0, None, None, None, None, None),
-#                             out_axes=0)
-#     elif args.dataset in ["normal_token_vector"]:
-#         seq_len = (args.dataset_size *2) + 1
-#         data_creator = vmap(create_vec_reg_data_classic_token,
-#                             in_axes=(0, None, None, None, None, None),
-#                             out_axes=0)
-#     else:
-#         pass
-#     data = data_creator(jax.random.split(eval_rng, num=bs),
-#                       10,
-#                       args.dataset_size,
-#                       config.size_distract,
-#                       config.input_range, #FIXME : add to arg
-#                       config.weight_scale)
-#     lr_scan_range = jnp.arange(0.001, 25, 0.1)
-#     losses_lr = []
-#     for lr in lr_scan_range:
-#         gd_model_cls,gd_state = model_init(args,rng,gd_params=True,gd_lr=lr)
-#         val_loss = validate(gd_state,
-#                             gd_model_cls,
-#                             data,
-#                             seq_len,
-#                             10,
-#                             args.batchnorm,
-#                             args.dataset)
-#         losses_lr.append(val_loss)
-#     losses_lr = jnp.array(losses_lr)
-#     lr_min_i = jnp.argmin(losses_lr)
-#     min_loss = jnp.min(losses_lr)
-#     return lr_scan_range[lr_min_i], min_loss

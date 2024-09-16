@@ -18,12 +18,15 @@ if __name__ == "__main__":
 						help="name of directory where data is cached")
  
 	## incontext data
-	parser.add_argument("--dataset", type=str, choices=['normal_token_scalar','normal_token_vector'],
+	parser.add_argument("--dataset", type=str, choices=['normal_token_scalar','normal_token_vector','constructed_token'],
 						default='normal_token_scalar',
 						help="dataset name")
 	parser.add_argument("--dataset_size", type=int,
 						default=10,
 						help="incontext data size")
+	parser.add_argument("--input_size", type=int,
+						default=10,
+						help="incontext feature size")
 	parser.add_argument("--analyse", type=str2bool, default=False,
 						help="Analysis of gradient descent parameters")
 

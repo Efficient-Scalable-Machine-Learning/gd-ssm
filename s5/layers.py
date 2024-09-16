@@ -44,8 +44,8 @@ class S5layer(nn.Module):
         if self.batchnorm:
             self.norm = nn.BatchNorm(use_running_average=not self.training,
                                     momentum=self.bn_momentum, axis_name='batch')
-        # elif self.layernorm:
-        #     self.norm = nn.LayerNorm()
+        else:
+            self.norm = nn.LayerNorm()
 
         self.drop = nn.Dropout(
             self.dropout,
@@ -62,8 +62,6 @@ class S5layer(nn.Module):
             output sequence (float32): (L, d_model)
         """
         skip = x
-        if self.prenorm:
-            x = self.norm(x)
         x = self.seq(x)
 
         if self.activation in ["full_glu"]:

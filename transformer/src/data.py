@@ -327,6 +327,32 @@ def create_weights(i_size, o_size, c_size, lr, w_init, second_zero=False,
 
 create_weights(10, 1, 10, 0.1, jnp.ones([1, 1, 10])*0.1)
 
+@partial(jax.jit, static_argnums=(1, 2, 3))
+def create_constructed_reg_data(rng, i_size, c_size, size_distract, input_range, w_scale):
+  """Create a linear regression data set: X*w where x ~ U(-1, 1), w ~ N(0,1)."""
+
+  rng, new_rng, new_rng2, new_rng3, new_rng4 = jax.random.split(rng, 5)
+  w = jax.random.normal(rng, shape=[i_size])*w_scale
+
+  x = jax.random.uniform(new_rng, shape=[c_size, i_size],
+                         minval=-input_range/2, maxval=input_range/2)
+  x_querry = jax.random.uniform(new_rng2, shape=[1, i_size],
+                                minval=-input_range/2, maxval=input_range/2)
+
+  y_data = jnp.squeeze(x@w)
+  choice = jax.random.choice(new_rng4, c_size, shape=[size_distract],
+                             replace=False)
+  y_data = y_data.at[choice].set(jax.random.normal(new_rng3,
+                                                   shape=[size_distract]))
+
+  x_y_combined = x * y_data[:, np.newaxis] # x*y
+  x_next = jnp.vstack((x[1:], x_querry))
+  seq = jnp.concatenate((x_y_combined, x_next), axis=1) #[x_1*y_1,x_2]
+
+  y_target = x_querry@w
+  y_target = y_target[..., None]
+  target = jnp.concatenate([x_querry, y_target], -1)
+  return jnp.squeeze(seq), jnp.squeeze(target), w
 
 
 

@@ -91,12 +91,14 @@ def apply_ssm(Lambda_bar, C_tilde,w_q, D, input_sequence, conj_sym, bidirectiona
         def f(carry, inp):
             carry = rec_param*carry+inp
             return carry,carry
-        zs_out, _ = jax.lax.scan(f, state_vec, lsa_vec)
-        zs_ls.append(zs_out)
-    zs = np.vstack(zs_ls)
-    zs = C_tilde @ zs # State transformation #TODO - currently operation only on query data
-    os = transformed_sequence[-1].T @ D #TODO - move this transformation to train step
-    os = zs @ os    
+        _, zs = jax.lax.scan(f, state_vec, lsa_vec)
+        zs_ls.append(zs)
+    zs = np.stack(zs_ls,axis=1)
+    zs = jax.vmap(lambda u: C_tilde @ u)(zs)
+    #zs = C_tilde @ zs # State transformation #TODO - currently operation only on query data
+    #os = transformed_sequence[-1].T @ D #TODO - move this transformation to train step
+    os = jax.vmap(lambda u: u.T @ D)(transformed_sequence)
+    os = jax.vmap(lambda u,v: u@v,in_axes=(0))(zs,os) 
     return os
     
 class multi_S5SSM(nn.Module):
@@ -154,7 +156,7 @@ class multi_S5SSM(nn.Module):
            the SSM is applied to a sequence
         """
         if self.gd_params:
-            self.Lambda_re = self.param("Lambda_re", lambda rng, shape: self.Lambda_re_init, (None,))
+            self.Lambda_re = self.param("Lambda_re", lambda rng, shape: self.Lambda_re_init, (None,)) #Dummy
             self.w_q = np.outer(np.array([1,0,0]), np.array([0,1,0]))
             self.Lambda_bar = np.ones((10, 10))
             self.C_tilde = -(self.gd_lr/self.P)*np.eye(10)

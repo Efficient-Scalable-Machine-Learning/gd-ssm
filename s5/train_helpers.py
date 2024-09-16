@@ -407,9 +407,11 @@ def get_prediction(state, model, inputs, seq_len, in_dim, batchnorm,dataset, ste
                             inputs, integration_timesteps,
                             )
     if dataset in ["normal_token_scalar"]:
+        logits = logits[0,-1,-1] * -1
+    elif dataset in ["normal_token_vector"]:
         logits = logits[0,-1] * -1
     else:
-        logits = logits[0,:] * -1
+        logits = logits[0]*-1
         # _, logits = eval_step(inputs, labels, integration_timesteps, state, model, batchnorm,dataset)
     # model = model(training=False, step_rescale=step_rescale)
     return logits
@@ -443,10 +445,12 @@ def train_step(state,
                 mutable=["intermediates"],
             )
         if dataset in ['normal_token_scalar']:
-            loss = compute_loss(logits[:,-1]*-1, batch_labels[:,-1])
+            loss = compute_loss(logits[:,-1,-1]*-1, batch_labels[:,-1])
+        elif dataset in ['normal_token_vector']:
+            loss = compute_loss(logits[:,-1]*-1, batch_labels)
+            loss = loss/(logits.shape[2])
         else:
-            loss = compute_loss(logits*-1, batch_labels)
-            loss = loss/(logits.shape[1])
+            loss = compute_loss(logits[:,-1]*-1, batch_labels[:,-1])
 
         return loss, (mod_vars, logits)
 
@@ -477,10 +481,12 @@ def eval_step(batch_inputs,
                             batch_inputs, batch_integration_timesteps,
                             )
     if dataset in ['normal_token_scalar']:
-        losses = compute_loss(logits[:,-1]*-1, batch_labels[:,-1])
+        losses = compute_loss(logits[:,-1,-1]*-1, batch_labels[:,-1])
+    elif dataset in ['normal_token_vector']:
+        losses = compute_loss(logits[:,-1]*-1, batch_labels)
+        losses = losses/(logits.shape[2])
     else:
-        losses = compute_loss(logits*-1, batch_labels)
-        losses = losses/(logits.shape[1])
+        losses = compute_loss(logits[:,-1]*-1, batch_labels[:,-1])
     return losses, logits
 
 def compute_loss(preds, targets):

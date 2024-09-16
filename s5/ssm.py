@@ -81,16 +81,18 @@ def apply_ssm(Lambda_bar, B_bar, C_tilde, input_sequence, conj_sym, bidirectiona
                                           (Lambda_elements, Bu_elements),
                                           reverse=True)
         xs = np.concatenate((xs, xs2), axis=-1)
+        
+    return xs
 
-    if conj_sym:
-        return jax.vmap(lambda x: 2*(C_tilde @ x).real)(xs)
-    else:
-        return jax.vmap(lambda x: (C_tilde @ x).real)(xs)
+    # if conj_sym:
+    #     return jax.vmap(lambda x: 2*(C_tilde @ x).real)(xs)
+    # else:
+    #     return jax.vmap(lambda x: (C_tilde @ x).real)(xs)
 
 
 class S5SSM(nn.Module):
     Lambda_re_init: np.array
-    Lambda_im_init: np.array
+#    Lambda_im_init: np.array
     V: np.array
     Vinv: np.array
 
@@ -150,11 +152,13 @@ class S5SSM(nn.Module):
 
         # Initialize diagonal state to state matrix Lambda (eigenvalues)
         self.Lambda_re = self.param("Lambda_re", lambda rng, shape: self.Lambda_re_init, (None,))
-        self.Lambda_im = self.param("Lambda_im", lambda rng, shape: self.Lambda_im_init, (None,))
+#        self.Lambda_im = self.param("Lambda_im", lambda rng, shape: self.Lambda_im_init, (None,))
         if self.clip_eigs:
-            self.Lambda = np.clip(self.Lambda_re, None, -1e-4) + 1j * self.Lambda_im
+            #self.Lambda = np.clip(self.Lambda_re, None, -1e-4) + 1j * self.Lambda_im
+            self.Lambda = np.clip(self.Lambda_re, None, -1e-4)
         else:
-            self.Lambda = self.Lambda_re + 1j * self.Lambda_im
+            #self.Lambda = self.Lambda_re + 1j * self.Lambda_im
+            self.Lambda = np.clip(self.Lambda_re, None, -1e-4)
 
         # Initialize input to state (B) matrix
         B_init = lecun_normal()
@@ -164,8 +168,10 @@ class S5SSM(nn.Module):
                                                           rng,
                                                           shape,
                                                           self.Vinv),
-                            B_shape)
-        B_tilde = self.B[..., 0] + 1j * self.B[..., 1]
+                            B_shape)[..., 0]
+        #B_tilde = self.B[..., 0] + 1j * self.B[..., 1]
+        #self.B = self.param("B",B_init,B_shape)
+        B_tilde = self.B
 
         # Initialize state to output (C) matrix
         if self.C_init in ["trunc_standard_normal"]:
@@ -183,11 +189,14 @@ class S5SSM(nn.Module):
         if self.C_init in ["complex_normal"]:
             if self.bidirectional:
                 C = self.param("C", C_init, (self.H, 2 * self.P, 2))
-                self.C_tilde = C[..., 0] + 1j * C[..., 1]
+                #self.C_tilde = C[..., 0] + 1j * C[..., 1]
+                self.C_tilde = C
 
             else:
                 C = self.param("C", C_init, (self.H, self.P, 2))
-                self.C_tilde = C[..., 0] + 1j * C[..., 1]
+                #self.C_tilde = C[..., 0] + 1j * C[..., 1]
+                self.C_tilde = C
+
 
         else:
             if self.bidirectional:
@@ -207,11 +216,13 @@ class S5SSM(nn.Module):
                                     lambda rng, shape: init_CV(C_init, rng, shape, self.V),
                                     C_shape)
 
-                self.C_tilde = self.C[..., 0] + 1j * self.C[..., 1]
+                #self.C_tilde = self.C[..., 0] + 1j * self.C[..., 1]
+                self.C_tilde = self.C[..., 0]
 
         # Initialize feedthrough (D) matrix
-        self.D = self.param("D", normal(stddev=1.0), (self.H,))
-
+        #self.D = self.param("D", normal(stddev=1.0), (self.H,))
+        #self.D = self.param("D",lecun_normal(),(self.H,self.H))
+        self.D = self.param("D",lecun_normal(),(self.P,self.H))
         # Initialize learnable discretization timescale value
         self.log_step = self.param("log_step",
                                    init_log_steps,
@@ -243,14 +254,15 @@ class S5SSM(nn.Module):
                        self.bidirectional)
 
         # Add feedthrough matrix output Du;
-        Du = jax.vmap(lambda u: self.D * u)(input_sequence)
-        return ys + Du
+        Du = jax.vmap(lambda u: self.D @ u)(input_sequence)
+        os = jax.vmap(lambda u,v:u.T @ v)(Du,ys)
+        return os
 
 
 def init_S5SSM(H,
                P,
                Lambda_re_init,
-               Lambda_im_init,
+#               Lambda_im_init,
                V,
                Vinv,
                C_init,
@@ -267,7 +279,7 @@ def init_S5SSM(H,
                    H=H,
                    P=P,
                    Lambda_re_init=Lambda_re_init,
-                   Lambda_im_init=Lambda_im_init,
+#                   Lambda_im_init=Lambda_im_init,
                    V=V,
                    Vinv=Vinv,
                    C_init=C_init,

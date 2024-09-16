@@ -16,7 +16,8 @@ from s5.train_helpers import create_train_state,reduce_lr_on_plateau,\
         validate,get_prediction
 from s5.analysis import analyse,scan_lrs
 from transformer.src.transformer import Transformer
-from transformer.src.data import create_reg_data_classic_token, create_vec_reg_data_classic_token
+from transformer.src.data import create_constructed_reg_data,create_reg_data_classic_token,\
+    create_vec_reg_data_classic_token
 from transformer.src.config import config 
 
 def train(args):
@@ -30,12 +31,12 @@ def train(args):
     key = random.PRNGKey(args.jax_seed)
     init_rng, train_rng , data_rng,eval_rng= random.split(key, num=4)
     model_cls,state = model_init(args,init_rng,gd_params=False,gd_lr=None)
-    in_dim = args.dataset_size # In-context regression data feature size
+    in_dim = args.input_size # In-context regression data feature size
     ssm_lr = args.ssm_lr_base
     lr = args.lr_factor * ssm_lr
     ### Data
     if args.dataset in ["normal_token_scalar"]:
-        seq_len = args.dataset_size
+        seq_len = (args.dataset_size *2) + 1
         data_creator = vmap(create_reg_data_classic_token,
                             in_axes=(0, None, None, None, None, None),
                             out_axes=0)
@@ -44,12 +45,18 @@ def train(args):
         data_creator = vmap(create_vec_reg_data_classic_token,
                             in_axes=(0, None, None, None, None, None),
                             out_axes=0)
+    elif args.dataset in ["constructed_token"]:
+        seq_len = args.dataset_size
+        data_creator = vmap(create_constructed_reg_data,
+                        in_axes=(0, None, None, None, None, None),
+                        out_axes=0)
+        
     else:
         raise NotImplementedError("dataset method {} not implemented".format(args.dataset))
         
     #Create eval data
     eval_data = data_creator(random.split(eval_rng, num=10000),
-                                    10, 
+                                    in_dim, 
                                     args.dataset_size,
                                     config.size_distract,
                                     config.input_range,
@@ -74,7 +81,7 @@ def train(args):
 
         rng, data_rng = random.split(data_rng, 2)
         trainloader = data_creator(random.split(rng, num=args.bsz), 
-                                    10,
+                                    in_dim,
                                     args.dataset_size,
                                     config.size_distract,
                                     config.input_range,
@@ -143,7 +150,7 @@ def train(args):
         if (epoch+1) % 100 ==0:
             print(f"\n=>> Epoch {epoch + 1} Metrics ===")
             print(
-                f"\tTrain Loss: {train_loss:.5f} -- Val Loss: {val_loss:.5f} -- Cos similarity: {0:.5f}"
+                f"\tTrain Loss: {train_loss:.5f} -- Val Loss: {val_loss:.5f}"
                 )
  #save model checkpoint
     if not os.path.isdir(os.path.join(args.dir_name, 'checkpoints')):

@@ -59,8 +59,16 @@ class S5Model(nn.Module):
         Returns:
             output sequence (float32): (L, d_model)
         """
-        for layer in self.layers:
+        
+        for i,layer in enumerate(self.layers):
+            skip = x
             x = layer(x)
+            if (len(skip)!=len(x))&(len(self.layers)!=1):
+                padding_rows = len(skip) - len(x)
+                padding_array = np.zeros((padding_rows, 10))
+                x = np.vstack([padding_array, x])
+                if i < (len(self.layers)-1):
+                    x = x+skip
         return x
 
 
