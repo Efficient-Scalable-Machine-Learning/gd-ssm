@@ -8,7 +8,7 @@ from jax import jacfwd, jacrev
 from s5.model_init import model_init
 from s5.train_helpers import validate,get_prediction
 from transformer.src.config import config
-from transformer.src.data import create_reg_data_classic_token,create_vec_reg_data_classic_token
+from transformer.src.data import create_reg_data_classic_token,create_vec_reg_data_classic_token, create_constructed_reg_data
 from IPython.display import Image, HTML, clear_output
 import matplotlib.pylab as pl
 import matplotlib.colors as mcolors
@@ -27,6 +27,11 @@ def scan_lrs(args,rng,lin_diag,bs):
         data_creator = vmap(create_vec_reg_data_classic_token,
                             in_axes=(0, None, None, None, None, None),
                             out_axes=0)
+    elif args.dataset in ["constructed_token"]:
+        seq_len = args.dataset_size
+        data_creator = vmap(create_constructed_reg_data,
+                        in_axes=(0, None, None, None, None, None),
+                        out_axes=0)
     else:
         pass
     data = data_creator(jax.random.split(eval_rng, num=bs),
@@ -282,6 +287,8 @@ def analyse(dataset,dataset_size,batchnorm,data,state,model_cls, gd_model_cls,gd
         seq_len = (dataset_size *2) + 1
     elif dataset in ["normal_token_vector"]:
         seq_len = (dataset_size *2) + 1
+    elif dataset in ["constructed_token"]:
+        seq_len = dataset_size
     else:
         pass
     pred = lambda z: get_prediction(state,model_cls,z[None, ...],seq_len,10,batchnorm,dataset)
@@ -293,7 +300,7 @@ def analyse(dataset,dataset_size,batchnorm,data,state,model_cls, gd_model_cls,gd
       grads = vmap(jax.grad(pred))(data[0])[:, -1, :]
       grads_norm = jnp.linalg.norm(grads, axis=1)
     else:
-      grads = vmap(jax.grad(pred))(data[0])[:, -1, :-1]
+      grads = vmap(jax.grad(pred))(data[0])[:, -1, :]
       grads_norm = jnp.linalg.norm(grads, axis=1)
     #grads = vmap(jax.grad(pred))(data[0])[:, -1, :-1]  #+ w_init
     
@@ -314,7 +321,7 @@ def analyse(dataset,dataset_size,batchnorm,data,state,model_cls, gd_model_cls,gd
                                 grads_c/(grads_c_norm[..., None]+ 1e-8))
       #dot_products = jnp.mean(dot_products,axis=1)
     else:
-      grads_c = vmap(jax.grad(pred_c))(data[0])[:, -1, :-1]
+      grads_c = vmap(jax.grad(pred_c))(data[0])[:, -1, :]
       grads_c_norm = jnp.linalg.norm(grads_c, axis=1)
       dot_products = jnp.einsum('ij,ij->i', grads/(grads_norm[..., None] + 1e-8),
                                 grads_c/(grads_c_norm[..., None]+ 1e-8))

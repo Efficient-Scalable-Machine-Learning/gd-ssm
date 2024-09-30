@@ -2,6 +2,7 @@ import os
 import wandb
 from jax.scipy.linalg import block_diag
 from s5.multi_ssm import init_multi_S5SSM
+# from s5.ssm import init_S5SSM
 from s5.ssm import init_S5SSM
 from s5.ssm_init import make_DPLR_HiPPO
 from s5.seq_model import BatchS5Model
@@ -33,10 +34,10 @@ def model_init(args,init_rng,gd_params,gd_lr):
         in_dim = args.input_size 
     else:
         seq_len = args.dataset_size
-        args.d_model = 2* args.d_model
+        # args.d_model = args.d_model
         in_dim = 2 * args.input_size 
     if gd_params:
-        ssm_init_fn = init_multi_S5SSM(H=args.d_model,
+        ssm_init_fn = init_S5SSM(H=args.d_model,
                                 P=ssm_size,
                                 Lambda_re_init=jnp.ones(ssm_size),
                                 V=None,
@@ -113,8 +114,9 @@ def model_init(args,init_rng,gd_params,gd_lr):
                                     conj_sym=args.conj_sym,
                                     clip_eigs=args.clip_eigs,
                                     bidirectional=args.bidirectional,
-#                                    gd_params=False,
-#                                    gd_lr=0.01                                
+                                    step_rescale=1,
+                                    gd_params=False,
+                                    gd_lr=0.01                                
                                     )
 
     model_cls = partial(

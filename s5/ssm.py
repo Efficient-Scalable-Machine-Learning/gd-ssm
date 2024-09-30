@@ -106,6 +106,8 @@ class S5SSM(nn.Module):
     clip_eigs: bool = False
     bidirectional: bool = False
     step_rescale: float = 1.0
+    gd_params: bool = False
+    gd_lr: float = 0.01
 
     """ The S5 SSM
         Args:
@@ -142,100 +144,111 @@ class S5SSM(nn.Module):
         """Initializes parameters once and performs discretization each time
            the SSM is applied to a sequence
         """
-
-        if self.conj_sym:
-            # Need to account for case where we actually sample real B and C, and then multiply
-            # by the half sized Vinv and possibly V
-            local_P = 2*self.P
+        if self.gd_params:
+            self.Lambda_re = self.param("Lambda_re", lambda rng, shape: self.Lambda_re_init, (None,))
+            self.Lambda_bar = np.ones(self.P,)
+            self.C_tilde = np.ones((self.H, self.P)) # no effect
+            # self.B_bar = -(self.gd_lr/self.P)*np.hstack([np.zeros((self.P, self.P)), np.ones((self.P, self.H - self.P))]) #(m,2m)
+            self.B_bar = np.zeros((self.P, self.H))
+            self.B_bar = -(self.gd_lr/self.P)*self.B_bar.at[:self.P, :self.P].set(np.eye(self.P))   
+            # self.D = np.vstack([np.zeros((self.P, self.P)), np.ones((self.H - self.P, self.P))]) #(2m,m)
+            self.D = np.zeros((self.H, self.P))
+            self.D = self.D.at[self.P:, :self.P].set(np.eye(self.P))
+            self.D = self.D.T
         else:
-            local_P = self.P
+            if self.conj_sym:
+                # Need to account for case where we actually sample real B and C, and then multiply
+                # by the half sized Vinv and possibly V
+                local_P = 2*self.P
+            else:
+                local_P = self.P
 
-        # Initialize diagonal state to state matrix Lambda (eigenvalues)
-        self.Lambda_re = self.param("Lambda_re", lambda rng, shape: self.Lambda_re_init, (None,))
-#        self.Lambda_im = self.param("Lambda_im", lambda rng, shape: self.Lambda_im_init, (None,))
-        if self.clip_eigs:
-            #self.Lambda = np.clip(self.Lambda_re, None, -1e-4) + 1j * self.Lambda_im
-            self.Lambda = np.clip(self.Lambda_re, None, -1e-4)
-        else:
-            #self.Lambda = self.Lambda_re + 1j * self.Lambda_im
-            self.Lambda = np.clip(self.Lambda_re, None, -1e-4)
+            # Initialize diagonal state to state matrix Lambda (eigenvalues)
+            self.Lambda_re = self.param("Lambda_re", lambda rng, shape: self.Lambda_re_init, (None,))
+    #        self.Lambda_im = self.param("Lambda_im", lambda rng, shape: self.Lambda_im_init, (None,))
+            if self.clip_eigs:
+                #self.Lambda = np.clip(self.Lambda_re, None, -1e-4) + 1j * self.Lambda_im
+                self.Lambda = np.clip(self.Lambda_re, None, -1e-4)
+            else:
+                #self.Lambda = self.Lambda_re + 1j * self.Lambda_im
+                self.Lambda = np.clip(self.Lambda_re, None, -1e-4)
 
-        # Initialize input to state (B) matrix
-        B_init = lecun_normal()
-        B_shape = (local_P, self.H)
-        self.B = self.param("B",
-                            lambda rng, shape: init_VinvB(B_init,
-                                                          rng,
-                                                          shape,
-                                                          self.Vinv),
-                            B_shape)[..., 0]
-        #B_tilde = self.B[..., 0] + 1j * self.B[..., 1]
-        #self.B = self.param("B",B_init,B_shape)
-        B_tilde = self.B
+            # Initialize input to state (B) matrix
+            B_init = lecun_normal()
+            B_shape = (local_P, self.H)
+            self.B = self.param("B",
+                                lambda rng, shape: init_VinvB(B_init,
+                                                            rng,
+                                                            shape,
+                                                            self.Vinv),
+                                B_shape)[..., 0]
+            #B_tilde = self.B[..., 0] + 1j * self.B[..., 1]
+            #self.B = self.param("B",B_init,B_shape)
+            B_tilde = self.B
 
-        # Initialize state to output (C) matrix
-        if self.C_init in ["trunc_standard_normal"]:
-            C_init = trunc_standard_normal
-            C_shape = (self.H, local_P, 2)
-        elif self.C_init in ["lecun_normal"]:
-            C_init = lecun_normal()
-            C_shape = (self.H, local_P, 2)
-        elif self.C_init in ["complex_normal"]:
-            C_init = normal(stddev=0.5 ** 0.5)
-        else:
-            raise NotImplementedError(
-                   "C_init method {} not implemented".format(self.C_init))
+            # Initialize state to output (C) matrix
+            if self.C_init in ["trunc_standard_normal"]:
+                C_init = trunc_standard_normal
+                C_shape = (self.H, local_P, 2)
+            elif self.C_init in ["lecun_normal"]:
+                C_init = lecun_normal()
+                C_shape = (self.H, local_P, 2)
+            elif self.C_init in ["complex_normal"]:
+                C_init = normal(stddev=0.5 ** 0.5)
+            else:
+                raise NotImplementedError(
+                    "C_init method {} not implemented".format(self.C_init))
 
-        if self.C_init in ["complex_normal"]:
-            if self.bidirectional:
-                C = self.param("C", C_init, (self.H, 2 * self.P, 2))
-                #self.C_tilde = C[..., 0] + 1j * C[..., 1]
-                self.C_tilde = C
+            if self.C_init in ["complex_normal"]:
+                if self.bidirectional:
+                    C = self.param("C", C_init, (self.H, 2 * self.P, 2))
+                    #self.C_tilde = C[..., 0] + 1j * C[..., 1]
+                    self.C_tilde = C
+
+                else:
+                    C = self.param("C", C_init, (self.H, self.P, 2))
+                    #self.C_tilde = C[..., 0] + 1j * C[..., 1]
+                    self.C_tilde = C
+
 
             else:
-                C = self.param("C", C_init, (self.H, self.P, 2))
-                #self.C_tilde = C[..., 0] + 1j * C[..., 1]
-                self.C_tilde = C
+                if self.bidirectional:
+                    self.C1 = self.param("C1",
+                                        lambda rng, shape: init_CV(C_init, rng, shape, self.V),
+                                        C_shape)
+                    self.C2 = self.param("C2",
+                                        lambda rng, shape: init_CV(C_init, rng, shape, self.V),
+                                        C_shape)
 
+                    C1 = self.C1[..., 0] + 1j * self.C1[..., 1]
+                    C2 = self.C2[..., 0] + 1j * self.C2[..., 1]
+                    self.C_tilde = np.concatenate((C1, C2), axis=-1)
 
-        else:
-            if self.bidirectional:
-                self.C1 = self.param("C1",
-                                     lambda rng, shape: init_CV(C_init, rng, shape, self.V),
-                                     C_shape)
-                self.C2 = self.param("C2",
-                                     lambda rng, shape: init_CV(C_init, rng, shape, self.V),
-                                     C_shape)
+                else:
+                    self.C = self.param("C",
+                                        lambda rng, shape: init_CV(C_init, rng, shape, self.V),
+                                        C_shape)
 
-                C1 = self.C1[..., 0] + 1j * self.C1[..., 1]
-                C2 = self.C2[..., 0] + 1j * self.C2[..., 1]
-                self.C_tilde = np.concatenate((C1, C2), axis=-1)
+                    #self.C_tilde = self.C[..., 0] + 1j * self.C[..., 1]
+                    self.C_tilde = self.C[..., 0]
 
+            # Initialize feedthrough (D) matrix
+            #self.D = self.param("D", normal(stddev=1.0), (self.H,))
+            #self.D = self.param("D",lecun_normal(),(self.H,self.H))
+            self.D = self.param("D",lecun_normal(),(self.P,self.H))
+            # Initialize learnable discretization timescale value
+            self.log_step = self.param("log_step",
+                                    init_log_steps,
+                                    (self.P, self.dt_min, self.dt_max))
+            step = self.step_rescale * np.exp(self.log_step[:, 0])
+
+            # Discretize
+            if self.discretization in ["zoh"]:
+                self.Lambda_bar, self.B_bar = discretize_zoh(self.Lambda, B_tilde, step)
+            elif self.discretization in ["bilinear"]:
+                self.Lambda_bar, self.B_bar = discretize_bilinear(self.Lambda, B_tilde, step)
             else:
-                self.C = self.param("C",
-                                    lambda rng, shape: init_CV(C_init, rng, shape, self.V),
-                                    C_shape)
-
-                #self.C_tilde = self.C[..., 0] + 1j * self.C[..., 1]
-                self.C_tilde = self.C[..., 0]
-
-        # Initialize feedthrough (D) matrix
-        #self.D = self.param("D", normal(stddev=1.0), (self.H,))
-        #self.D = self.param("D",lecun_normal(),(self.H,self.H))
-        self.D = self.param("D",lecun_normal(),(self.P,self.H))
-        # Initialize learnable discretization timescale value
-        self.log_step = self.param("log_step",
-                                   init_log_steps,
-                                   (self.P, self.dt_min, self.dt_max))
-        step = self.step_rescale * np.exp(self.log_step[:, 0])
-
-        # Discretize
-        if self.discretization in ["zoh"]:
-            self.Lambda_bar, self.B_bar = discretize_zoh(self.Lambda, B_tilde, step)
-        elif self.discretization in ["bilinear"]:
-            self.Lambda_bar, self.B_bar = discretize_bilinear(self.Lambda, B_tilde, step)
-        else:
-            raise NotImplementedError("Discretization method {} not implemented".format(self.discretization))
+                raise NotImplementedError("Discretization method {} not implemented".format(self.discretization))
 
     def __call__(self, input_sequence):
         """
@@ -271,7 +284,10 @@ def init_S5SSM(H,
                dt_max,
                conj_sym,
                clip_eigs,
-               bidirectional
+               bidirectional,
+               step_rescale,
+               gd_params,
+               gd_lr,
                ):
     """Convenience function that will be used to initialize the SSM.
        Same arguments as defined in S5SSM above."""
@@ -288,4 +304,7 @@ def init_S5SSM(H,
                    dt_max=dt_max,
                    conj_sym=conj_sym,
                    clip_eigs=clip_eigs,
-                   bidirectional=bidirectional)
+                   bidirectional=bidirectional,
+                   step_rescale=step_rescale,
+                   gd_params=gd_params,
+                   gd_lr=gd_lr)

@@ -19,7 +19,7 @@ if __name__ == "__main__":
  
 	## incontext data
 	parser.add_argument("--dataset", type=str, choices=['normal_token_scalar','normal_token_vector','constructed_token'],
-						default='normal_token_scalar',
+						default='constructed_token',
 						help="dataset name")
 	parser.add_argument("--dataset_size", type=int,
 						default=10,
@@ -27,13 +27,13 @@ if __name__ == "__main__":
 	parser.add_argument("--input_size", type=int,
 						default=10,
 						help="incontext feature size")
-	parser.add_argument("--analyse", type=str2bool, default=False,
+	parser.add_argument("--analyse", type=str2bool, default=True,
 						help="Analysis of gradient descent parameters")
 
 	# Model Parameters
 	parser.add_argument("--n_layers", type=int, default=1,
 						help="Number of layers in the network")
-	parser.add_argument("--d_model", type=int, default=10,
+	parser.add_argument("--d_model", type=int, default=20,
 						help="Number of features, i.e. H, "
 							 "dimension of layer inputs/outputs")
 	parser.add_argument("--ssm_size_base", type=int, default=10,

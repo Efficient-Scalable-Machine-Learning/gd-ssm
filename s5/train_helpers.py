@@ -411,7 +411,8 @@ def get_prediction(state, model, inputs, seq_len, in_dim, batchnorm,dataset, ste
     elif dataset in ["normal_token_vector"]:
         logits = logits[0,-1] * -1
     else:
-        logits = logits[0]*-1
+        # logits = logits[0,-1]*-1
+        logits = np.squeeze(logits[:,-1])*-1
         # _, logits = eval_step(inputs, labels, integration_timesteps, state, model, batchnorm,dataset)
     # model = model(training=False, step_rescale=step_rescale)
     return logits
