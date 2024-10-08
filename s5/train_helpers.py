@@ -439,24 +439,26 @@ def train_step(state,
                 rngs={"dropout": rng},
                 mutable=["intermediates", "batch_stats"],
             )
+            logged_params = None
         else:
-            logits, mod_vars = model.apply(
+            vars, mod_vars = model.apply(
                 {"params": params},
                 batch_inputs, batch_integration_timesteps,
                 rngs={"dropout": rng},
                 mutable=["intermediates"],
             )
+        logits, layer_params = vars[0], vars[1]
         if dataset in ['normal_token_scalar']:
             loss = compute_loss(logits[:,-1,-1]*-1, batch_labels[:,-1])
         elif dataset in ['normal_token_vector']:
             loss = compute_loss(logits[:,-1]*-1, batch_labels)
             loss = loss/(logits.shape[2])
         else:
-            loss = compute_loss(logits[:,-1]*-1, batch_labels[:,-1])
+            loss = compute_loss(logits[:,-1]*-0.1, batch_labels[:,-1])
 
-        return loss, (mod_vars, logits)
+        return loss, (mod_vars, vars)
 
-    (loss, (mod_vars, logits)), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
+    (loss, (mod_vars, vars)), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
 
     if batchnorm:
         state = state.apply_gradients(grads=grads, batch_stats=mod_vars["batch_stats"])
@@ -489,7 +491,7 @@ def eval_step(batch_inputs,
         losses = compute_loss(logits[:,-1]*-1, batch_labels)
         losses = losses/(logits.shape[2])
     else:
-        losses = compute_loss(logits[:,-1]*-1, batch_labels[:,-1])
+        losses = compute_loss(logits[:,-1]*-0.1, batch_labels[:,-1])
     return losses, logits, logged_params
 
 def compute_loss(preds, targets):

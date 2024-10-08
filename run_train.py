@@ -1,7 +1,7 @@
 import argparse
 from s5.utils.util import str2bool
 #from s5.train import train
-# from s5.normal_token_construct import train
+from s5.normal_token_construct import train
 from s5.normal_token_test import test
 #from s5.dataloading import Datasets
 
@@ -11,11 +11,12 @@ if __name__ == "__main__":
 
 	parser.add_argument("--USE_WANDB", type=str2bool, default=False,
 						help="log with wandb?")
-	parser.add_argument("--wandb_project", type=str, default=None,
+	parser.add_argument("--wandb_project", type=str, default='icl_s5',
 						help="wandb project name")
 	parser.add_argument("--wandb_entity", type=str, default=None,
 						help="wandb entity name, e.g. username")
-	parser.add_argument("--dir_name", type=str, default='/home/tianyusq/icl-matrix/loss',
+	
+	parser.add_argument("--dir_name", type=str, default='/home/tianyusq/icl-matrix/new-exp',
 						help="name of directory where data is cached")
  
 	## incontext data
@@ -28,13 +29,13 @@ if __name__ == "__main__":
 	parser.add_argument("--input_size", type=int,
 						default=10,
 						help="incontext feature size")
-	parser.add_argument("--analyse", type=str2bool, default=True,
+	parser.add_argument("--analyse", type=str2bool, default=False,
 						help="Analysis of gradient descent parameters")
 
 	# Model Parameters
 	parser.add_argument("--n_layers", type=int, default=1,
 						help="Number of layers in the network")
-	parser.add_argument("--d_model", type=int, default=20,
+	parser.add_argument("--d_model", type=int, default=10,
 						help="Number of features, i.e. H, "
 							 "dimension of layer inputs/outputs")
 	parser.add_argument("--ssm_size_base", type=int, default=10,
@@ -110,4 +111,5 @@ if __name__ == "__main__":
 	parser.add_argument("--jax_seed", type=int, default=1919,
 						help="seed randomness")
 
-	test(parser.parse_args())
+	# test(parser.parse_args())
+	train(parser.parse_args())

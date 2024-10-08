@@ -26,7 +26,7 @@ def train(args):
     """
     if args.USE_WANDB:
         # Make wandb config dictionary
-        wandb.init(project=args.wandb_project, job_type='model_training', config=vars(args), entity=args.wandb_entity)
+        wandb.init(project="icl_s5", dir='/scratch/tianyusq/wandb/', config=vars(args))
     # Set randomness...
     key = random.PRNGKey(args.jax_seed)
     init_rng, train_rng , data_rng,eval_rng= random.split(key, num=4)
@@ -118,7 +118,7 @@ def train(args):
                                                 args.batchnorm,
                                                 args.dataset,
                                                 lr_params)
-        val_loss = validate(state,
+        val_loss,logged_params = validate(state,
                             model_cls,
                             eval_data,
                             seq_len,
@@ -144,7 +144,7 @@ def train(args):
             if args.analyse:
                 wandb.log({"train_loss": train_loss, "val_loss": val_loss,"Model_cos":cos_sim,"Model_diff":w_norm,"Preds_diff":p_norm,"GD_loss":min_loss})
             else:
-                wandb.log({"train_loss": train_loss, "val_loss": val_loss})
+                wandb.log({"train_loss": train_loss, "val_loss": val_loss, "ssm_lr": ssm_lr, "lr": lr})
         ls_trainloss.append(train_loss)
         ls_valloss.append(val_loss)
         if (epoch+1) % 100 ==0:
@@ -155,7 +155,7 @@ def train(args):
  #save model checkpoint
     if not os.path.isdir(os.path.join(args.dir_name, 'checkpoints')):
         os.makedirs(os.path.join(args.dir_name, 'checkpoints'))
-    checkpoints.save_checkpoint(ckpt_dir=os.path.join(os.path.abspath(args.dir_name),'checkpoints'), target=state, step=args.epochs,prefix='normal_', overwrite=True)
+    checkpoints.save_checkpoint(ckpt_dir=os.path.join(os.path.abspath(args.dir_name),'checkpoints'), target=state, step=args.epochs,prefix='coef_', overwrite=False)
     
 
 ### Analysis

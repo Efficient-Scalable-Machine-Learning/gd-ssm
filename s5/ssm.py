@@ -258,7 +258,7 @@ class S5SSM(nn.Module):
             else:
                 raise NotImplementedError("Discretization method {} not implemented".format(self.discretization))
 
-    def __call__(self, input_sequence, log_callback=None):
+    def __call__(self, x, log_callback=None):
         """
         Compute the LxH output of the S5 SSM given an LxH input sequence
         using a parallel scan.
@@ -267,6 +267,14 @@ class S5SSM(nn.Module):
         Returns:
             output sequence (float32): (L, H)
         """
+        mask_xy = np.zeros((self.P, 2*self.P))
+        mask_xy = mask_xy.at[:self.P, :self.P].set(np.ones(self.P))
+        input_sequence = x[:, :self.P]
+
+        mask_y = np.zeros((self.P, 2*self.P))
+        mask_y = mask_y.at[:self.P, self.P:].set(np.ones(self.P))
+        target_sequence = x[:, self.P:]
+
         ys = apply_ssm(self.Lambda_bar,
                        self.B_bar,
                        self.C_tilde,
@@ -275,9 +283,9 @@ class S5SSM(nn.Module):
                        self.bidirectional)
 
         # Add feedthrough matrix output Du;
-        Du = jax.vmap(lambda u: self.D @ u)(input_sequence)
+        # Du = jax.vmap(lambda u: self.D @ u)(input_sequence)
         # os = jax.vmap(lambda u,v:u.T @ v)(Du,ys)
-        os = jax.vmap(lambda u,v:u.T @ v)(ys, Du)
+        os = jax.vmap(lambda u,v:u.T @ v)(ys, target_sequence)
         return os, self.get_parameters()
 
 

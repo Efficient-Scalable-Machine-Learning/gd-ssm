@@ -59,7 +59,8 @@ class S5Model(nn.Module):
         Returns:
             output sequence (float32): (L, d_model)
         """
-        
+        # input_seq, target_seq = x[:,:10], x[:,10:]
+        # x = input_seq
         for i,layer in enumerate(self.layers):
             skip = x
             x, layer_params = layer(x)
@@ -69,6 +70,7 @@ class S5Model(nn.Module):
                 x = np.vstack([padding_array, x])
                 if i < (len(self.layers)-1):
                     x = x+skip
+        
         return x, layer_params
 
 
