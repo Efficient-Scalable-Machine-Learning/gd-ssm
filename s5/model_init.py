@@ -116,7 +116,8 @@ def model_init(args,init_rng,gd_params,gd_lr):
                                     bidirectional=args.bidirectional,
                                     step_rescale=1,
                                     gd_params=False,
-                                    gd_lr=0.01                                
+                                    gd_lr=0.01,
+                          
                                     )
 
     model_cls = partial(
@@ -143,5 +144,7 @@ def model_init(args,init_rng,gd_params,gd_lr):
                                 opt_config=args.opt_config,
                                 ssm_lr=ssm_lr,
                                 lr=lr,
-                                dt_global=args.dt_global)
+                                dt_global=args.dt_global,
+                                # log_callback=None,
+                                )
     return model_cls,state

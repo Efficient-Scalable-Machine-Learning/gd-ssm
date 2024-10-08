@@ -62,7 +62,7 @@ class S5layer(nn.Module):
             output sequence (float32): (L, d_model)
         """
         skip = x
-        x = self.seq(x)
+        x, layer_params = self.seq(x)
 
         if self.activation in ["full_glu"]:
             x = self.drop(nn.gelu(x))
@@ -88,4 +88,4 @@ class S5layer(nn.Module):
             x = skip + x
         # if not self.prenorm:
         #     x = self.norm(x)
-        return x
+        return x, layer_params

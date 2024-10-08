@@ -95,7 +95,8 @@ def create_train_state(model_cls,
                        opt_config="standard",
                        ssm_lr=1e-3,
                        lr=1e-3,
-                       dt_global=False
+                       dt_global=False,
+                    #    log_callback=None
                        ):
     """
     Initializes the training state using optax
@@ -132,7 +133,7 @@ def create_train_state(model_cls,
     init_rng, dropout_rng = jax.random.split(rng, num=2)
     variables = model.init({"params": init_rng,
                             "dropout": dropout_rng},
-                           dummy_input, integration_timesteps,
+                           dummy_input, integration_timesteps
                            )
     if batchnorm:
         # params = variables["params"].unfreeze()
@@ -388,11 +389,11 @@ def validate(state, model, testloader, seq_len, in_dim, batchnorm,dataset, step_
     for batch_idx, batch in enumerate(testloader):
         inputs, labels, _ = testloader
         integration_timesteps = np.ones((len(inputs), seq_len))
-        loss, _ = eval_step(inputs, labels, integration_timesteps, state, model, batchnorm,dataset)
+        loss, _, logged_params = eval_step(inputs, labels, integration_timesteps, state, model, batchnorm,dataset)
         losses = np.append(losses, loss)
 
     aveloss = np.mean(losses)    
-    return aveloss
+    return aveloss, logged_params
 
 def get_prediction(state, model, inputs, seq_len, in_dim, batchnorm,dataset, step_rescale=1.0):
     """Validation function that loops over batches"""
@@ -464,7 +465,7 @@ def train_step(state,
     return state, loss
 
 
-@partial(jax.jit, static_argnums=(4,5,6))
+# @partial(jax.jit, static_argnums=(4,5,6,7))
 def eval_step(batch_inputs,
             batch_labels,
             batch_integration_timesteps,
@@ -472,13 +473,14 @@ def eval_step(batch_inputs,
             model,
             batchnorm,
             dataset,
+            # log_callback,
             ):
     if batchnorm:
         logits = model.apply({"params": state.params, "batch_stats": state.batch_stats},
                             batch_inputs, batch_integration_timesteps,
                             )
     else:
-        logits = model.apply({"params": state.params},
+        logits, logged_params = model.apply({"params": state.params},
                             batch_inputs, batch_integration_timesteps,
                             )
     if dataset in ['normal_token_scalar']:
@@ -488,7 +490,7 @@ def eval_step(batch_inputs,
         losses = losses/(logits.shape[2])
     else:
         losses = compute_loss(logits[:,-1]*-1, batch_labels[:,-1])
-    return losses, logits
+    return losses, logits, logged_params
 
 def compute_loss(preds, targets):
     """

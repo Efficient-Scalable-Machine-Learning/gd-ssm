@@ -1,7 +1,8 @@
 import argparse
 from s5.utils.util import str2bool
 #from s5.train import train
-from s5.normal_token_construct import train
+# from s5.normal_token_construct import train
+from s5.normal_token_test import test
 #from s5.dataloading import Datasets
 
 if __name__ == "__main__":
@@ -14,7 +15,7 @@ if __name__ == "__main__":
 						help="wandb project name")
 	parser.add_argument("--wandb_entity", type=str, default=None,
 						help="wandb entity name, e.g. username")
-	parser.add_argument("--dir_name", type=str, default='./cache_dir',
+	parser.add_argument("--dir_name", type=str, default='/home/tianyusq/icl-matrix/loss',
 						help="name of directory where data is cached")
  
 	## incontext data
@@ -109,4 +110,4 @@ if __name__ == "__main__":
 	parser.add_argument("--jax_seed", type=int, default=1919,
 						help="seed randomness")
 
-	train(parser.parse_args())
+	test(parser.parse_args())

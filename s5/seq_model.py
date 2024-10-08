@@ -62,14 +62,14 @@ class S5Model(nn.Module):
         
         for i,layer in enumerate(self.layers):
             skip = x
-            x = layer(x)
+            x, layer_params = layer(x)
             if (len(skip)!=len(x))&(len(self.layers)!=1):
                 padding_rows = len(skip) - len(x)
                 padding_array = np.zeros((padding_rows, 10))
                 x = np.vstack([padding_array, x])
                 if i < (len(self.layers)-1):
                     x = x+skip
-        return x
+        return x, layer_params
 
 
 # Here we call vmap to parallelize across a batch of input sequences

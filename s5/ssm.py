@@ -139,6 +139,14 @@ class S5SSM(nn.Module):
             step_rescale:  (float32): allows for uniformly changing the timescale parameter, e.g. after training 
                                     on a different resolution for the speech commands benchmark
     """
+    def get_parameters(self):
+        """Return the requested model parameters."""
+        return {
+            "D": self.D,
+            "B_bar": self.B_bar,
+            # "C_tilde": self.C_tilde,
+            "A": self.Lambda_bar  # Note: A is represented by Lambda_bar in this implementation
+        }
 
     def setup(self):
         """Initializes parameters once and performs discretization each time
@@ -250,7 +258,7 @@ class S5SSM(nn.Module):
             else:
                 raise NotImplementedError("Discretization method {} not implemented".format(self.discretization))
 
-    def __call__(self, input_sequence):
+    def __call__(self, input_sequence, log_callback=None):
         """
         Compute the LxH output of the S5 SSM given an LxH input sequence
         using a parallel scan.
@@ -268,8 +276,9 @@ class S5SSM(nn.Module):
 
         # Add feedthrough matrix output Du;
         Du = jax.vmap(lambda u: self.D @ u)(input_sequence)
-        os = jax.vmap(lambda u,v:u.T @ v)(Du,ys)
-        return os
+        # os = jax.vmap(lambda u,v:u.T @ v)(Du,ys)
+        os = jax.vmap(lambda u,v:u.T @ v)(ys, Du)
+        return os, self.get_parameters()
 
 
 def init_S5SSM(H,
@@ -288,6 +297,7 @@ def init_S5SSM(H,
                step_rescale,
                gd_params,
                gd_lr,
+
                ):
     """Convenience function that will be used to initialize the SSM.
        Same arguments as defined in S5SSM above."""
@@ -307,4 +317,5 @@ def init_S5SSM(H,
                    bidirectional=bidirectional,
                    step_rescale=step_rescale,
                    gd_params=gd_params,
-                   gd_lr=gd_lr)
+                   gd_lr=gd_lr,
+                   )

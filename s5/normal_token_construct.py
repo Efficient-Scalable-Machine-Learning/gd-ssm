@@ -155,7 +155,7 @@ def train(args):
  #save model checkpoint
     if not os.path.isdir(os.path.join(args.dir_name, 'checkpoints')):
         os.makedirs(os.path.join(args.dir_name, 'checkpoints'))
-    checkpoints.save_checkpoint(ckpt_dir=os.path.join(os.path.abspath(args.dir_name),'checkpoints'), target=state, step=0,overwrite=True)
+    checkpoints.save_checkpoint(ckpt_dir=os.path.join(os.path.abspath(args.dir_name),'checkpoints'), target=state, step=args.epochs,prefix='normal_', overwrite=True)
     
 
 ### Analysis
