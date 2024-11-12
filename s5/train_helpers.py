@@ -269,30 +269,6 @@ def create_train_state(model_cls,
         return train_state.TrainState.create(apply_fn=model.apply, params=params, tx=tx)
 
 
-# Train and eval steps
-@partial(np.vectorize, signature="(c),()->()")
-def cross_entropy_loss(logits, label):
-    one_hot_label = jax.nn.one_hot(label, num_classes=logits.shape[0])
-    return -np.sum(one_hot_label * logits)
-
-
-# @partial(np.vectorize, signature="(c),()->()")
-def mse_loss(preds, targets):
-    # assert preds.shape == targets.shape
-    return 0.5 * np.sum((targets - preds) ** 2) # / targets.shape[0]
-
-
-@partial(np.vectorize, signature="(c),()->()")
-def compute_accuracy(logits, label):
-    return np.argmax(logits) == label
-
-# @partial(np.vectorize, signature="(c),()->()")
-def compute_rmse(preds, targets):
-    # assert preds.shape == targets.shape
-    # return np.sqrt(0.5 * np.sum((targets - preds) ** 2) / targets.shape[0])
-    return np.sqrt(0.5 * np.sum((targets - preds) ** 2))
-
-
 def prep_batch(batch: tuple,
                seq_len: int,
                in_dim: int) -> Tuple[np.ndarray, np.ndarray, np.array]:
@@ -376,7 +352,7 @@ def train_epoch(state, rng, model, trainloader, seq_len, in_dim, batchnorm,datas
         )
         batch_losses.append(loss)
         lr_params = (decay_function, ssm_lr, lr, step, end_step, opt_config, lr_min)
-        #state, step = update_learning_rate_per_step(lr_params, state)
+        state, step = update_learning_rate_per_step(lr_params, state)
 
     # Return average loss over batches
     return state, np.mean(np.array(batch_losses)), step
@@ -404,7 +380,7 @@ def get_prediction(state, model, inputs, seq_len, in_dim, batchnorm,dataset, ste
                             inputs, integration_timesteps,
                             )
     else:
-        logits = model.apply({"params": state.params},
+        logits, logged_params = model.apply({"params": state.params},
                             inputs, integration_timesteps,
                             )
     if dataset in ["normal_token_scalar"]:
@@ -454,7 +430,7 @@ def train_step(state,
             loss = compute_loss(logits[:,-1]*-1, batch_labels)
             loss = loss/(logits.shape[2])
         else:
-            loss = compute_loss(logits[:,-1]*-0.1, batch_labels[:,-1])
+            loss = compute_loss(logits[:,-1]*-1, batch_labels[:,-1])
 
         return loss, (mod_vars, vars)
 
@@ -491,7 +467,7 @@ def eval_step(batch_inputs,
         losses = compute_loss(logits[:,-1]*-1, batch_labels)
         losses = losses/(logits.shape[2])
     else:
-        losses = compute_loss(logits[:,-1]*-0.1, batch_labels[:,-1])
+        losses = compute_loss(logits[:,-1]*-1, batch_labels[:,-1])
     return losses, logits, logged_params
 
 def compute_loss(preds, targets):

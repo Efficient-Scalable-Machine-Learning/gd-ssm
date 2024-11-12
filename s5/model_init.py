@@ -1,23 +1,16 @@
-import os
-import wandb
+
 from jax.scipy.linalg import block_diag
 from s5.multi_ssm import init_multi_S5SSM
 # from s5.ssm import init_S5SSM
 from s5.ssm import init_S5SSM
 from s5.ssm_init import make_DPLR_HiPPO
 from s5.seq_model import BatchS5Model
-from ml_collections import config_dict
-from tqdm import tqdm
-from jax import random
-from flax import linen as nn
-from flax.training import checkpoints
-from s5.train_helpers import create_train_state,reduce_lr_on_plateau,\
-    linear_warmup, cosine_annealing, constant_lr, train_epoch, validate
 
-from transformer.src.transformer import Transformer
-from transformer.src.data import create_reg_data_classic_token, create_vec_reg_data_classic_token
-from transformer.src.config import config 
-from transformer.src.train import *
+from s5.train_helpers import create_train_state
+    # reduce_lr_on_plateau,\
+    # linear_warmup, cosine_annealing, constant_lr, train_epoch, validate
+from functools import partial
+import jax.numpy as np
 
 def model_init(args,init_rng,gd_params,gd_lr):
     
@@ -39,7 +32,7 @@ def model_init(args,init_rng,gd_params,gd_lr):
     if gd_params:
         ssm_init_fn = init_S5SSM(H=args.d_model,
                                 P=ssm_size,
-                                Lambda_re_init=jnp.ones(ssm_size),
+                                Lambda_re_init=np.ones(ssm_size),
                                 V=None,
                                 Vinv=None,
                                 C_init=None,
@@ -71,7 +64,7 @@ def model_init(args,init_rng,gd_params,gd_lr):
                 Vinv = block_diag(*([Vc] * args.blocks))
                 lambda_all.append(Lambda.real)
 
-            Lambda = jnp.vstack(lambda_all)
+            Lambda = np.vstack(lambda_all)
             ssm_init_fn = init_multi_S5SSM(H=args.d_model,
                                     P=ssm_size,
                                     Lambda_re_init=Lambda,

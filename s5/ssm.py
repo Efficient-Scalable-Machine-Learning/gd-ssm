@@ -241,8 +241,6 @@ class S5SSM(nn.Module):
                     self.C_tilde = self.C[..., 0]
 
             # Initialize feedthrough (D) matrix
-            #self.D = self.param("D", normal(stddev=1.0), (self.H,))
-            #self.D = self.param("D",lecun_normal(),(self.H,self.H))
             self.D = self.param("D",lecun_normal(),(self.P,self.H))
             # Initialize learnable discretization timescale value
             self.log_step = self.param("log_step",
@@ -267,13 +265,7 @@ class S5SSM(nn.Module):
         Returns:
             output sequence (float32): (L, H)
         """
-        mask_xy = np.zeros((self.P, 2*self.P))
-        mask_xy = mask_xy.at[:self.P, :self.P].set(np.ones(self.P))
-        input_sequence = x[:, :self.P]
-
-        mask_y = np.zeros((self.P, 2*self.P))
-        mask_y = mask_y.at[:self.P, self.P:].set(np.ones(self.P))
-        target_sequence = x[:, self.P:]
+        input_sequence = x
 
         ys = apply_ssm(self.Lambda_bar,
                        self.B_bar,
@@ -283,9 +275,9 @@ class S5SSM(nn.Module):
                        self.bidirectional)
 
         # Add feedthrough matrix output Du;
-        # Du = jax.vmap(lambda u: self.D @ u)(input_sequence)
+        Du = jax.vmap(lambda u: self.D @ u)(input_sequence)
         # os = jax.vmap(lambda u,v:u.T @ v)(Du,ys)
-        os = jax.vmap(lambda u,v:u.T @ v)(ys, target_sequence)
+        os = jax.vmap(lambda u,v:u.T @ v)(ys, Du)
         return os, self.get_parameters()
 
 

@@ -1,24 +1,19 @@
 import os
 import wandb
-from jax.scipy.linalg import block_diag
-from s5.multi_ssm import init_multi_S5SSM
-from s5.ssm_init import make_DPLR_HiPPO
-from s5.seq_model import BatchS5Model
+
 from s5.model_init import model_init
-from ml_collections import config_dict
-from tqdm import tqdm
-from jax import random,jacrev,vmap
-import jax.numpy as jnp
-from flax import linen as nn
+
+from jax import random,vmap #jacrev,
+
 from flax.training import checkpoints
-from s5.train_helpers import create_train_state,reduce_lr_on_plateau,\
-    linear_warmup, cosine_annealing, constant_lr, train_epoch,\
-        validate,get_prediction
+from s5.train_helpers import linear_warmup, cosine_annealing, constant_lr,\
+    train_epoch, validate
+
 from s5.analysis import analyse,scan_lrs
-from transformer.src.transformer import Transformer
-from transformer.src.data import create_constructed_reg_data,create_reg_data_classic_token,\
-    create_vec_reg_data_classic_token
-from transformer.src.config import config 
+
+from s5.data import create_constructed_reg_data,\
+    create_reg_data_classic_token, create_vec_reg_data_classic_token
+# from transformer.src.config import config 
 
 def train(args):
     """
@@ -26,7 +21,7 @@ def train(args):
     """
     if args.USE_WANDB:
         # Make wandb config dictionary
-        wandb.init(project="icl_s5", dir='/scratch/tianyusq/wandb/', config=vars(args))
+        wandb.init(project=args.wandb_project, dir=args.wandb_dir, config=vars(args))
     # Set randomness...
     key = random.PRNGKey(args.jax_seed)
     init_rng, train_rng , data_rng,eval_rng= random.split(key, num=4)
@@ -58,22 +53,17 @@ def train(args):
     eval_data = data_creator(random.split(eval_rng, num=10000),
                                     in_dim, 
                                     args.dataset_size,
-                                    config.size_distract,
-                                    config.input_range,
-                                    config.weight_scale)
+                                    args.size_distract,
+                                    args.input_range,
+                                    args.weight_scale)
     if args.analyse:
         gd_lr,min_loss = scan_lrs(args,data_rng,False,10000)
         gd_model_cls,gd_state = model_init(args,init_rng,gd_params=True,gd_lr=gd_lr)
         print(f"Validation loss on the gradient-descent based construction:{min_loss} for the learning rate {gd_lr}")
-    # if args.analyse and args.dataset in ["normal_token_vector"]:
-    #     print("Analysis for normal token vector is not implemented")
-    #     args.analyse = False
-    # Training Loop over epochs
+
     ls_trainloss, ls_valloss, loss_ssm_list, losses_gd_list, cos_sim_list, grad_norm_list, p_norm_list= [],[],[],[],[],[],[]
 
-    best_loss, best_acc, best_epoch = 100000000, -100000000.0, 0  # This best loss is val_loss
-    count, best_val_loss = 0, 100000000  # This line is for early stopping purposes
-    lr_count, opt_acc = 0, -100000000.0  # This line is for learning rate decay
+
     step = 0  # for per step learning rate decay
     train_size= args.bsz # FIXME - hardcode
     steps_per_epoch = int(train_size/args.bsz)
@@ -83,9 +73,9 @@ def train(args):
         trainloader = data_creator(random.split(rng, num=args.bsz), 
                                     in_dim,
                                     args.dataset_size,
-                                    config.size_distract,
-                                    config.input_range,
-                                    config.weight_scale)
+                                    args.size_distract,
+                                    args.input_range,
+                                    args.weight_scale)
         #print(f"[*] Starting Training Epoch {epoch + 1}...")
 
         if epoch < args.warmup_end:
@@ -125,13 +115,7 @@ def train(args):
                             in_dim,
                             args.batchnorm,
                             args.dataset)
-        # val_loss_gd = validate(gd_state,
-        #                         gd_model_cls,
-        #                         eval_data,
-        #                         seq_len,
-        #                         in_dim,
-        #                         args.batchnorm,
-        #                         args.dataset)
+
         if args.analyse:
             cos_sim, w_norm, p_norm = analyse(args.dataset,args.dataset_size,args.batchnorm,eval_data,state,model_cls, gd_model_cls,gd_state)
             cos_sim_list.append(cos_sim)
@@ -155,7 +139,7 @@ def train(args):
  #save model checkpoint
     if not os.path.isdir(os.path.join(args.dir_name, 'checkpoints')):
         os.makedirs(os.path.join(args.dir_name, 'checkpoints'))
-    checkpoints.save_checkpoint(ckpt_dir=os.path.join(os.path.abspath(args.dir_name),'checkpoints'), target=state, step=args.epochs,prefix='coef_', overwrite=False)
+    checkpoints.save_checkpoint(ckpt_dir=os.path.join(os.path.abspath(args.dir_name),'checkpoints'), target=state, step=args.epochs, overwrite=False)
     
 
 ### Analysis

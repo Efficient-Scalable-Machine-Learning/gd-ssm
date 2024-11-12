@@ -7,8 +7,7 @@ from jax import numpy as jnp
 from jax import jacfwd, jacrev
 from s5.model_init import model_init
 from s5.train_helpers import validate,get_prediction
-from transformer.src.config import config
-from transformer.src.data import create_reg_data_classic_token,create_vec_reg_data_classic_token, create_constructed_reg_data
+from s5.data import create_reg_data_classic_token,create_vec_reg_data_classic_token, create_constructed_reg_data,create_constructed_reg_data_new
 from IPython.display import Image, HTML, clear_output
 import matplotlib.pylab as pl
 import matplotlib.colors as mcolors
@@ -29,7 +28,7 @@ def scan_lrs(args,rng,lin_diag,bs):
                             out_axes=0)
     elif args.dataset in ["constructed_token"]:
         seq_len = args.dataset_size
-        data_creator = vmap(create_constructed_reg_data,
+        data_creator = vmap(create_constructed_reg_data_new,
                         in_axes=(0, None, None, None, None, None),
                         out_axes=0)
     else:
@@ -37,14 +36,14 @@ def scan_lrs(args,rng,lin_diag,bs):
     data = data_creator(jax.random.split(eval_rng, num=bs),
                       args.input_size,
                       args.dataset_size,
-                      config.size_distract,
-                      config.input_range, #FIXME : add to arg
-                      config.weight_scale)
+                      args.size_distract,
+                      args.input_range, #FIXME : add to arg
+                      args.weight_scale)
     lr_scan_range = jnp.arange(0.001, 25, 0.1)
     losses_lr = []
     for lr in lr_scan_range:
         gd_model_cls,gd_state = model_init(args,rng,gd_params=True,gd_lr=lr)
-        val_loss = validate(gd_state,
+        val_loss,logged_params = validate(gd_state,
                             gd_model_cls,
                             data,
                             seq_len,
