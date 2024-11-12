@@ -1,0 +1,5 @@
+jax[cuda12]
+flax
+jaxtyping
+optax
+wandb
