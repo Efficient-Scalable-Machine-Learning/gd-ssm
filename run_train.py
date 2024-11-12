@@ -9,14 +9,14 @@ if __name__ == "__main__":
 
 	parser.add_argument("--USE_WANDB", type=str2bool, default=False,
 						help="log with wandb?")
-	parser.add_argument("--wandb_project", type=str, default='icl_res',
+	parser.add_argument("--wandb_project", type=str, default=None,
 						help="wandb project name")
 	parser.add_argument("--wandb_entity", type=str, default=None,
 						help="wandb entity name, e.g. username")
-	parser.add_argument("--wandb_dir", type=str, default='/scratch/tianyusq/wandb/',
+	parser.add_argument("--wandb_dir", type=str, default=None,
 						help="wandb run stored")
-	parser.add_argument("--dir_name", type=str, default='/home/tianyusq/res-checkpoints/s5-vs',
-						help="name of directory where data is cached")
+	parser.add_argument("--dir_name", type=str, default=None,
+						help="name of directory where checkpoint is cached")
  
 	## incontext data
 	parser.add_argument("--dataset", type=str, choices=['normal_token_scalar','normal_token_vector','constructed_token'],
